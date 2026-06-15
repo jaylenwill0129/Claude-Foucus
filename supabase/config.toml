@@ -1,0 +1,43 @@
+project_id = "rqbynqdfniniyhfqnmgb"
+
+[functions.alpaca-stream]
+verify_jwt = false
+
+[functions.auto-trader-tick]
+verify_jwt = false
+
+[functions.reconcile-fills]
+verify_jwt = false
+
+[functions.cache-prices]
+verify_jwt = false
+
+[functions.market-regime]
+verify_jwt = false
+
+[functions.auto-trader-watchdog]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.resend-outreach]
+verify_jwt = true
+
+[functions.shopify-storefront]
+verify_jwt = true
+
+[functions.google-drive-oauth]
+verify_jwt = false
+
+[functions.google-drive-fulfillment]
+verify_jwt = true
+
+[functions.automation-worker]
+verify_jwt = false
+
+[functions.autopilot-planner]
+verify_jwt = false
+
+[functions.crm-prospect-sync]
+verify_jwt = true
