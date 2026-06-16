@@ -70,6 +70,22 @@ autopilot-planner ◀── reads latest brief's agentRoutes ──┘
    • outreach/send stays approval-gated regardless
 ```
 
+## Evals — routing quality
+
+Deterministic schema/rubric tests run with the normal suite (`npm test`). To check
+the live model's judgment against fixtures (one blocked connector / mostly blocked /
+all ready), run the gated eval:
+
+```bash
+NOUS_API_KEY=sk-nous-xxxx npm run eval:hermes
+```
+
+It sends each fixture through the same prompt + normalization the edge function
+uses (`supabase/functions/_shared/hermesBriefSchema.ts`) and asserts average
+routing quality ≥ 80% (grounded bottleneck, coherent score, known agents only,
+no self-executed side effects, concrete next move). Baseline at time of writing:
+100% across all three fixtures.
+
 ## Safety posture (do not change without an explicit decision)
 
 Preparation is autonomous. External side effects — TikTok posting, LinkedIn/email
