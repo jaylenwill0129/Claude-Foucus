@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DerivativesDashboard from "./pages/DerivativesDashboard";
+import World from "./pages/World";
 import AgentWorld from "./pages/AgentWorld";
 import AuthPage from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -19,7 +20,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<AgentWorld />} />
+          <Route path="/" element={<World />} />
+          <Route path="/console" element={<AgentWorld />} />
           <Route path="/derivatives" element={<DerivativesDashboard />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/reset-password" element={<ResetPassword />} />
