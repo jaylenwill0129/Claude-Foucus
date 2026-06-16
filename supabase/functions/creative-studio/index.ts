@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callHermes, HERMES_MODEL, hermesConfigured, parseHermesJson } from "../_shared/hermes.ts";
 import { PLAYBOOKS, playbookPrompt } from "../_shared/playbooks.ts";
+import { asStringArray, type CreativePackage, normalizeCreativePackage } from "../_shared/creativeSchema.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,16 +23,6 @@ const pendingProviders = () => {
   if (!Deno.env.get("MUSIC_PROVIDER_URL")) pending.push("music");
   if (!Deno.env.get("VISUAL_PROVIDER_URL")) pending.push("visual");
   return pending;
-};
-
-type CreativePackage = {
-  title: string;
-  trendCluster: { tags: string[]; rationale: string; reachToEffort: string };
-  track: { genre: string; bpm: number; mood: string; structure: string; durationSec: number };
-  visual: { concept: string; palette: string; motion: string };
-  caption: string;
-  hashtags: string[];
-  reasoning: string;
 };
 
 const SYSTEM_PROMPT = `${playbookPrompt(PLAYBOOKS.creative)}
@@ -56,9 +47,6 @@ const buildUserPrompt = (tags: string[], seedTheme?: string) =>
   `Trend signals (TikTok Discover): ${tags.length ? tags.join(", ") : "(none provided — infer a currently plausible cluster)"}\n` +
   `${seedTheme ? `Seed theme: ${seedTheme}\n` : ""}` +
   `Produce the creative package JSON now.`;
-
-const asStringArray = (v: unknown, limit: number) =>
-  Array.isArray(v) ? v.slice(0, limit).map((x) => String(x).slice(0, 60)) : [];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -111,29 +99,7 @@ Deno.serve(async (req) => {
   if (!parsed) return json({ error: "Hermes returned unparseable output", raw: result.content.slice(0, 500) }, 502);
 
   const pending = pendingProviders();
-  const pkg = {
-    title: String(parsed.title ?? "Untitled release").slice(0, 200),
-    trendCluster: {
-      tags: asStringArray(parsed.trendCluster?.tags, 12),
-      rationale: String(parsed.trendCluster?.rationale ?? "").slice(0, 500),
-      reachToEffort: ["high", "medium", "low"].includes(String(parsed.trendCluster?.reachToEffort)) ? parsed.trendCluster.reachToEffort : "medium",
-    },
-    track: {
-      genre: String(parsed.track?.genre ?? "").slice(0, 80),
-      bpm: Math.max(0, Math.min(300, Math.round(Number(parsed.track?.bpm) || 0))),
-      mood: String(parsed.track?.mood ?? "").slice(0, 80),
-      structure: String(parsed.track?.structure ?? "").slice(0, 200),
-      durationSec: Math.max(0, Math.min(600, Math.round(Number(parsed.track?.durationSec) || 0))),
-    },
-    visual: {
-      concept: String(parsed.visual?.concept ?? "").slice(0, 300),
-      palette: String(parsed.visual?.palette ?? "").slice(0, 120),
-      motion: String(parsed.visual?.motion ?? "").slice(0, 120),
-    },
-    caption: String(parsed.caption ?? "").slice(0, 400),
-    hashtags: asStringArray(parsed.hashtags, 15),
-    reasoning: String(parsed.reasoning ?? "").slice(0, 600),
-  };
+  const pkg = normalizeCreativePackage(parsed);
 
   const { data: saved } = await supabase
     .from("agent_creative_packages")
