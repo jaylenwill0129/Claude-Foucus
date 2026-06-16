@@ -301,6 +301,46 @@ export const loadHermesHistory = async (limit = 8): Promise<HermesHistoryEntry[]
   }));
 };
 
+export type CreativePackage = {
+  title: string;
+  trendCluster: { tags: string[]; rationale: string; reachToEffort: string };
+  track: { genre: string; bpm: number; mood: string; structure: string; durationSec: number };
+  visual: { concept: string; palette: string; motion: string };
+  caption: string;
+  hashtags: string[];
+  reasoning: string;
+};
+
+export type CreativeCycleResult = {
+  ok: boolean;
+  message: string;
+  pkg?: CreativePackage;
+  pendingProviders?: string[];
+};
+
+// Run one cycle of Aria's creative preparation loop. Prepares concepts + caption
+// only; publishing stays a separate, operator-approved action.
+export const runCreativeCycle = async (input: { discoverTags?: string[]; seedTheme?: string } = {}): Promise<CreativeCycleResult> => {
+  const endpoint = functionUrl("creative-studio");
+  const headers = await authHeaders();
+  if (!endpoint) return { ok: false, message: "Creative studio endpoint is not configured." };
+  if (!("Authorization" in headers)) return { ok: false, message: "Sign in to run a creative cycle." };
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(input),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result?.package) {
+      return { ok: false, message: result?.error ?? `Creative studio returned HTTP ${response.status}.` };
+    }
+    return { ok: true, message: "Prepared an approval-ready package. Publishing stays gated.", pkg: result.package, pendingProviders: result.pendingProviders ?? [] };
+  } catch {
+    return { ok: false, message: "Could not reach the creative studio." };
+  }
+};
+
 export const executeBusinessAction = async (action: BusinessAction, connectors: Connector[]): Promise<{ ok: boolean; message: string }> => {
   const connector = connectors.find((item) => item.id === action.connector);
   if (!connector?.endpoint || connector.status !== "ready") {

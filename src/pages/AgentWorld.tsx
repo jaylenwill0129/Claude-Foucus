@@ -34,10 +34,12 @@ import {
   loadRevenueSummary,
   type HermesHistoryEntry,
   probeBusinessConnectors,
+  runCreativeCycle,
   setAutomationEnabled,
   type AutomationSummary,
   type BusinessAction,
   type ConnectorId,
+  type CreativePackage,
   type HermesIntelligence,
   type RevenueSummary,
 } from "@/lib/businessOps";
@@ -187,6 +189,22 @@ export default function AgentWorld() {
     const result = await setAutomationEnabled(!automation.enabled);
     setAutomationMessage(result.message);
     await refreshControlPlane();
+  };
+
+  const [creativeRunning, setCreativeRunning] = useState(false);
+  const [creativePackage, setCreativePackage] = useState<CreativePackage | null>(null);
+  const [creativePending, setCreativePending] = useState<string[]>([]);
+  const [creativeMessage, setCreativeMessage] = useState("");
+  const runCreative = async () => {
+    setCreativeRunning(true);
+    setCreativeMessage("");
+    const result = await runCreativeCycle({ discoverTags: ["#ai", "#summergarden", "#lofi"] });
+    setCreativeMessage(result.message);
+    if (result.ok && result.pkg) {
+      setCreativePackage(result.pkg);
+      setCreativePending(result.pendingProviders ?? []);
+    }
+    setCreativeRunning(false);
   };
 
   return (
@@ -391,6 +409,32 @@ export default function AgentWorld() {
             </section>
           )}
 
+          {selected.id === "creative" && (
+            <section className="rounded-2xl border border-[#d8d5cc] bg-[#faf9f5] p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold">Signal Studio</p>
+                <button onClick={runCreative} disabled={creativeRunning} className="flex items-center gap-1.5 rounded-lg bg-[#18201d] px-3 py-2 text-[10px] font-bold text-white disabled:opacity-40">{creativeRunning ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}{creativeRunning ? "Preparing" : "Run preparation cycle"}</button>
+              </div>
+              <p className="mt-1 text-[10px] text-[#7b847f]">Aria prepares a release package from live trends. Publishing stays operator-approved.</p>
+              {creativeMessage && <p className="mt-2 text-[10px] font-medium text-[#9a6044]">{creativeMessage}</p>}
+              {creativePackage && (
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-xl border border-[#e0ddd4] bg-white p-4">
+                    <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">{creativePackage.title}</p><span className="rounded-full bg-[#f1e1d8] px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[#9a6044]">awaiting approval</span></div>
+                    <p className="mt-2 text-[11px] leading-relaxed text-[#4b5550]">{creativePackage.caption}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">{creativePackage.hashtags.map((h) => <span key={h} className="rounded-full bg-[#eef0e9] px-2 py-0.5 text-[9px] font-medium text-[#5f6863]">{h}</span>)}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <StudioFacet label="Track" value={`${creativePackage.track.genre} · ${creativePackage.track.bpm} BPM`} detail={`${creativePackage.track.mood} · ${creativePackage.track.durationSec}s`} pending={creativePending.includes("music")} />
+                    <StudioFacet label="Visual" value={creativePackage.visual.palette} detail={creativePackage.visual.motion} pending={creativePending.includes("visual")} />
+                  </div>
+                  <div className="rounded-xl border border-[#e0ddd4] bg-white p-3"><p className="text-[8px] font-bold uppercase tracking-wider text-[#969d99]">Visual concept</p><p className="mt-1 text-[10px] leading-relaxed text-[#68716d]">{creativePackage.visual.concept}</p></div>
+                  {creativePending.length > 0 && <p className="text-[9px] font-medium text-[#9a6044]">Pending providers: {creativePending.join(", ")} (concepts ready; rendering needs a configured provider).</p>}
+                </div>
+              )}
+            </section>
+          )}
+
           <section className="rounded-2xl border border-[#d8d5cc] bg-[#faf9f5] p-5">
             <div className="flex items-center justify-between"><p className="text-xs font-bold">Approval inbox</p><span className="text-[10px] font-bold text-[#7b847f]">{actions.length} waiting</span></div>
             <div className="mt-4 space-y-3">
@@ -427,6 +471,16 @@ export default function AgentWorld() {
         </aside>
       </div>
     </main>
+  );
+}
+
+function StudioFacet({ label, value, detail, pending }: { label: string; value: string; detail: string; pending: boolean }) {
+  return (
+    <div className="rounded-xl border border-[#e0ddd4] bg-white p-3">
+      <div className="flex items-center justify-between"><p className="text-[8px] font-bold uppercase tracking-wider text-[#969d99]">{label}</p>{pending && <span className="rounded-full bg-[#f1e1d8] px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-[#9a6044]">provider pending</span>}</div>
+      <p className="mt-1 text-[11px] font-bold text-[#3f4944]">{value || "—"}</p>
+      <p className="mt-0.5 text-[10px] text-[#68716d]">{detail}</p>
+    </div>
   );
 }
 

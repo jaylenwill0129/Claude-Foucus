@@ -34,7 +34,14 @@ supabase db push
 supabase functions deploy hermes-intelligence
 supabase functions deploy agent-orchestrator   # now Hermes-first, OpenAI fallback
 supabase functions deploy autopilot-planner     # now consumes Hermes routes
+supabase functions deploy creative-studio        # Aria's preparation loop (concepts + caption, gated)
 ```
+
+`creative-studio` prepares track/visual concepts and a caption with Hermes-4 and
+stores an approval-ready package (`agent_creative_packages`). Audio/video
+rendering needs external providers — set `MUSIC_PROVIDER_URL` / `VISUAL_PROVIDER_URL`
+secrets when available; until then those stages report as `provider pending` and
+nothing is posted.
 
 ## 4. Verify
 
