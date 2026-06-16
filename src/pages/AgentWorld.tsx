@@ -29,14 +29,20 @@ import {
   executeBusinessAction,
   getInitialConnectors,
   loadAutomationSummary,
+  loadHermesBrief,
+  loadHermesHistory,
   loadRevenueSummary,
+  type HermesHistoryEntry,
   probeBusinessConnectors,
   setAutomationEnabled,
   type AutomationSummary,
   type BusinessAction,
   type ConnectorId,
+  type HermesIntelligence,
   type RevenueSummary,
 } from "@/lib/businessOps";
+import { agentPlaybooks } from "@/lib/agentPlaybooks";
+import { buildHermesWorldState, computeFallbackBrief } from "@/lib/hermesBrief";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 
@@ -46,7 +52,7 @@ type Agent = {
   role: string;
   objective: string;
   deliverable: string;
-  connector: ConnectorId | "intelligence";
+  connector: ConnectorId | "intelligence" | "creative";
   icon: typeof Bot;
   body: string;
   place: string;
@@ -56,6 +62,7 @@ type Agent = {
 
 const agents: Agent[] = [
   { id: "hermes", name: "Hermes", role: "World intelligence agent", objective: "Turn live system state into clear decisions and better display", deliverable: "Operating brief, bottleneck, and route map", connector: "intelligence", icon: BrainCircuit, body: "Navigator with a world console, signal map, and command lens", place: "Intelligence Atrium", cadence: "Continuously reads the control plane", subagents: ["Signal interpreter", "UI cartographer", "Bottleneck router"] },
+  { id: "creative", name: "Aria", role: "Creative Director & DJ", objective: "Turn live cultural trends into release-ready track, visual, and caption packages", deliverable: "Approval-ready upload package with caption and evidence", connector: "creative", icon: Music2, body: "Creative Director at a 24/7 studio console with trend radar and generation bays", place: "Signal Studio", cadence: "24/7 preparation loop; posting stays operator-approved", subagents: ["Trend scout", "Music generator", "Visual editor", "Caption/SEO writer", "Upload packager"] },
   { id: "research", name: "Maya", role: "Research agent", objective: "Find businesses with a measurable, expensive problem", deliverable: "Qualified prospect record with evidence", connector: "crm", icon: Search, body: "Field researcher with CRM tablet and evidence camera", place: "Prospect Observatory", cadence: "Every 4 hours while Autopilot is armed", subagents: ["Apollo scout", "HubSpot librarian", "Fit scorer"] },
   { id: "sales", name: "Marcus", role: "Sales agent", objective: "Turn qualified prospects into booked calls and signed offers", deliverable: "Reply, booking, or signed agreement", connector: "outreach", icon: Mail, body: "SDR operator at a live outreach desk", place: "Outbound Office", cadence: "Drafts continuously; sends only after approval", subagents: ["Lead analyst", "Message drafter", "Senior closer"] },
   { id: "product", name: "Lena", role: "Product agent", objective: "Create and publish offers people can purchase immediately", deliverable: "Live offer, checkout, and delivery flow", connector: "storefront", icon: ShoppingBag, body: "Offer architect with product bench and checkout terminal", place: "Storefront Studio", cadence: "Creates drafts on demand; publish remains gated", subagents: ["Offer packager", "Pricing reviewer", "Listing QA"] },
@@ -134,23 +141,15 @@ export default function AgentWorld() {
   const connected = connectors.filter((connector) => connector.status === "ready").length;
   const nextBlocker = connectors.find((connector) => connector.status !== "ready");
   const readiness = Math.round((connected / connectors.length) * 100);
-  const agentReady = useCallback((agent: Agent) => agent.connector === "intelligence" || connectorMap[agent.connector]?.status === "ready", [connectorMap]);
+  const agentReady = useCallback((agent: Agent) => agent.connector === "intelligence" || agent.connector === "creative" || connectorMap[agent.connector]?.status === "ready", [connectorMap]);
   const blockedAgentCount = agents.filter((agent) => !agentReady(agent)).length;
-  const hermesBrief = useMemo(() => {
-    const readyConnectors = connectors.filter((connector) => connector.status === "ready").map((connector) => connector.name);
-    const blockedConnectors = connectors.filter((connector) => connector.status !== "ready");
-    const kernelReady = automation.workerReady && automation.plannerReady;
-    const bottleneck = blockedConnectors[0]?.name ?? (automation.awaitingApproval > 0 ? "Approval queue" : revenue.verifiedEvents === 0 ? "First verified revenue event" : "Scale the working loop");
-    const route = blockedConnectors[0]?.nextStep ?? (automation.awaitingApproval > 0 ? "Review the approval inbox, then let the worker continue." : "Keep Autopilot armed and route receipts into the ledger.");
-    const mood = connected === connectors.length && kernelReady ? "World is live" : kernelReady ? "Kernel is live; connectors still closing" : "Display online; kernel needs attention";
-    return {
-      mood,
-      bottleneck,
-      route,
-      readyConnectors,
-      intelligenceScore: Math.round(((connected / connectors.length) * 0.55 + (kernelReady ? 0.25 : 0) + (automation.enabled ? 0.1 : 0) + (revenue.available ? 0.1 : 0)) * 100),
-    };
-  }, [automation.awaitingApproval, automation.enabled, automation.plannerReady, automation.workerReady, connected, connectors, revenue.available, revenue.verifiedEvents]);
+  const readyConnectors = useMemo(() => connectors.filter((connector) => connector.status === "ready").map((connector) => connector.name), [connectors]);
+  const fallbackBrief = useMemo(() => computeFallbackBrief(connectors, revenue, automation), [connectors, revenue, automation]);
+  const [hermes, setHermes] = useState<HermesIntelligence | null>(null);
+  const [hermesThinking, setHermesThinking] = useState(false);
+  const [hermesHistory, setHermesHistory] = useState<HermesHistoryEntry[]>([]);
+  const hermesBrief = hermes?.brief ?? fallbackBrief;
+  const hermesLive = hermes?.source === "hermes-4";
 
   const refreshControlPlane = useCallback(async () => {
     setRefreshing(true);
@@ -159,6 +158,16 @@ export default function AgentWorld() {
     setRevenue(nextRevenue);
     setAutomation(nextAutomation);
     setRefreshing(false);
+
+    // Let Hermes-4 reason over the freshly probed world. Falls back silently to
+    // the deterministic read if the function is undeployed or the model errors.
+    setHermesThinking(true);
+    const fallback = computeFallbackBrief(nextConnectors, nextRevenue, nextAutomation);
+    const worldState = buildHermesWorldState(agents, nextConnectors, nextRevenue, nextAutomation);
+    const intelligence = await loadHermesBrief(worldState, fallback);
+    setHermes(intelligence);
+    setHermesThinking(false);
+    setHermesHistory(await loadHermesHistory());
   }, []);
 
   useEffect(() => {
@@ -215,9 +224,10 @@ export default function AgentWorld() {
             </div>
           </section>
           <section className="rounded-xl border border-[#d8d5cc] bg-[#faf9f5] p-4">
-            <div className="flex items-center justify-between"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8a928e]">Hermes</p><StatusDot label="online" ok /></div>
+            <div className="flex items-center justify-between"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8a928e]">Hermes</p><StatusDot label={hermesThinking ? "thinking" : hermesLive ? "Hermes-4 live" : "heuristic"} ok={hermesLive} /></div>
             <p className="mt-2 text-xs font-semibold">{hermesBrief.mood}</p>
             <p className="mt-2 text-[10px] leading-relaxed text-[#68716d]">Bottleneck: {hermesBrief.bottleneck}. {hermesBrief.route}</p>
+            {hermesLive && hermes?.model && <p className="mt-2 text-[9px] font-bold uppercase tracking-wider text-[#8a928e]">{hermes.model.split("/").pop()} · memory {hermes.memoryDepth ?? 0}</p>}
           </section>
           <section className="rounded-xl border border-[#d8d5cc] bg-[#faf9f5] p-4">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8a928e]">Control policy</p>
@@ -249,17 +259,33 @@ export default function AgentWorld() {
 
           <section className="rounded-2xl border border-[#d8d5cc] bg-[#faf9f5] p-5">
             <div className="mb-4 flex items-center justify-between">
-              <div><h3 className="text-sm font-bold">Hermes command lens</h3><p className="mt-1 text-xs text-[#7b847f]">A live intelligence layer over display, routing, and automation state.</p></div>
-              <StatusDot label={hermesBrief.mood} ok={automation.workerReady && automation.plannerReady} />
+              <div><h3 className="text-sm font-bold">Hermes command lens</h3><p className="mt-1 text-xs text-[#7b847f]">{hermesLive ? "Hermes-4 reasoning over the live world, with memory of prior briefs." : "Deterministic read. Deploy hermes-intelligence to enable Hermes-4."}</p></div>
+              <StatusDot label={hermesThinking ? "thinking" : hermesLive ? "Hermes-4 live" : "heuristic"} ok={hermesLive} />
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               <HermesCard label="Current read" value={hermesBrief.mood} detail={`${connected}/5 connectors ready. ${automation.enabled ? "Autopilot is armed." : "Autopilot is waiting."}`} />
               <HermesCard label="Bottleneck" value={hermesBrief.bottleneck} detail={hermesBrief.route} />
-              <HermesCard label="Display upgrade" value="Command-center view" detail="Hermes turns connector probes, jobs, approvals, and revenue into one operating map." />
+              <HermesCard label={`Confidence ${Math.round(hermesBrief.confidence * 100)}%`} value={`IQ ${hermesBrief.intelligenceScore}`} detail={hermesBrief.displayUpgrade} />
             </div>
+            {hermesBrief.reasoning && (
+              <div className="mt-3 rounded-xl border border-[#e0ddd4] bg-white p-4">
+                <p className="text-[8px] font-bold uppercase tracking-wider text-[#969d99]">Hermes reasoning</p>
+                <p className="mt-2 text-[11px] leading-relaxed text-[#4b5550]">{hermesBrief.reasoning}</p>
+              </div>
+            )}
+            {hermesBrief.agentRoutes.length > 0 && (
+              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {hermesBrief.agentRoutes.map((route, i) => (
+                  <div key={`${route.agent}-${i}`} className="rounded-xl border border-[#e0ddd4] bg-white p-3">
+                    <div className="flex items-center justify-between"><p className="text-[11px] font-bold">{route.agent}</p><span className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider ${route.priority === "now" ? "bg-[#f1e1d8] text-[#9a6044]" : route.priority === "hold" ? "bg-[#e8eadf] text-[#59625d]" : "bg-[#e1f0e3] text-[#477d53]"}`}>{route.priority}</span></div>
+                    <p className="mt-1.5 text-[10px] leading-relaxed text-[#68716d]">{route.directive}</p>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
-              {hermesBrief.readyConnectors.map((name) => <span key={name} className="rounded-full bg-[#e1f0e3] px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-[#477d53]">{name}</span>)}
-              {!hermesBrief.readyConnectors.length && <span className="rounded-full bg-[#f1e1d8] px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-[#9a6044]">No ready connectors yet</span>}
+              {readyConnectors.map((name) => <span key={name} className="rounded-full bg-[#e1f0e3] px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-[#477d53]">{name}</span>)}
+              {!readyConnectors.length && <span className="rounded-full bg-[#f1e1d8] px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-[#9a6044]">No ready connectors yet</span>}
             </div>
           </section>
 
@@ -340,8 +366,30 @@ export default function AgentWorld() {
             <Info label="Cadence" value={selected.cadence} />
             <Info label="Subagents" value={selected.subagents.join(" / ")} />
             <Info label="Required deliverable" value={selected.deliverable} />
-            <Info label="Blocked by" value={selected.connector === "intelligence" ? "Nothing. Hermes reads the world and routes the display." : connectorMap[selected.connector]?.status === "ready" ? "Nothing" : connectorMap[selected.connector]?.nextStep ?? selected.connector} />
+            <Info label="Blocked by" value={selected.connector === "intelligence" ? "Nothing. Hermes reads the world and routes the display." : selected.connector === "creative" ? "Nothing. Aria prepares packages continuously; posting stays approval-gated." : connectorMap[selected.connector]?.status === "ready" ? "Nothing" : connectorMap[selected.connector]?.nextStep ?? selected.connector} />
           </section>
+
+          {agentPlaybooks[selected.id] && (
+            <section className="rounded-2xl border border-[#d8d5cc] bg-[#faf9f5] p-5">
+              <div className="flex items-center justify-between"><p className="text-xs font-bold">Operational loop</p><span className="text-[9px] font-bold uppercase tracking-wider text-[#8a928e]">{agentPlaybooks[selected.id].loop.filter((s) => s.autonomy === "autonomous").length} auto · {agentPlaybooks[selected.id].loop.filter((s) => s.autonomy === "approval_gated").length} gated</span></div>
+              <div className="mt-4 space-y-2">
+                {agentPlaybooks[selected.id].loop.map((step, i) => (
+                  <div key={step.phase} className="rounded-xl border border-[#e0ddd4] bg-white p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-bold"><span className="text-[#a7ada9]">{i + 1}.</span> {step.phase}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider ${step.autonomy === "autonomous" ? "bg-[#e1f0e3] text-[#477d53]" : "bg-[#f1e1d8] text-[#9a6044]"}`}>{step.autonomy === "autonomous" ? "auto" : "approval"}</span>
+                    </div>
+                    <p className="mt-1.5 text-[10px] leading-relaxed text-[#68716d]">{step.action}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-[9px] font-bold uppercase tracking-wider text-[#8a928e]">Cadence</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-[#68716d]">{agentPlaybooks[selected.id].cadence}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {agentPlaybooks[selected.id].guardrails.map((g) => <span key={g} className="rounded-lg bg-[#eef0e9] px-2 py-1 text-[9px] font-medium text-[#5f6863]">{g}</span>)}
+              </div>
+            </section>
+          )}
 
           <section className="rounded-2xl border border-[#d8d5cc] bg-[#faf9f5] p-5">
             <div className="flex items-center justify-between"><p className="text-xs font-bold">Approval inbox</p><span className="text-[10px] font-bold text-[#7b847f]">{actions.length} waiting</span></div>
@@ -353,6 +401,29 @@ export default function AgentWorld() {
               })}
             </div>
           </section>
+
+          {hermesHistory.length > 0 && (
+            <section className="rounded-2xl border border-[#d8d5cc] bg-[#faf9f5] p-5">
+              <div className="flex items-center justify-between"><p className="text-xs font-bold">Hermes memory</p><span className="text-[10px] font-bold text-[#7b847f]">{hermesHistory.length} briefs</span></div>
+              <p className="mt-1 text-[10px] text-[#7b847f]">How the read and IQ moved across cycles. Hermes uses this as context.</p>
+              <div className="mt-4 space-y-2">
+                {hermesHistory.map((entry, i) => {
+                  const prev = hermesHistory[i + 1];
+                  const delta = prev ? entry.intelligenceScore - prev.intelligenceScore : 0;
+                  return (
+                    <div key={entry.createdAt} className="rounded-xl border border-[#e0ddd4] bg-white p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-bold">{entry.mood}</p>
+                        <span className="font-mono text-[10px] font-bold text-[#3f4944]">IQ {entry.intelligenceScore}{delta !== 0 && <span className={delta > 0 ? "text-[#4c8e5c]" : "text-[#b46b49]"}> {delta > 0 ? "▲" : "▼"}{Math.abs(delta)}</span>}</span>
+                      </div>
+                      <p className="mt-1 text-[10px] leading-relaxed text-[#68716d]">Bottleneck: {entry.bottleneck}</p>
+                      <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#969d99]">{new Date(entry.createdAt).toLocaleString()}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
         </aside>
       </div>
     </main>

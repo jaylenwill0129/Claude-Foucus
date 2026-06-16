@@ -208,6 +208,99 @@ export const setAutomationEnabled = async (enabled: boolean) => {
   return { ok: true, message: `Autopilot armed. Planned ${plannerResult.planned ?? 0} new jobs and started the worker.` };
 };
 
+export type HermesAgentRoute = { agent: string; directive: string; priority: "now" | "next" | "hold" };
+
+export type HermesBrief = {
+  mood: string;
+  headline: string;
+  bottleneck: string;
+  route: string;
+  intelligenceScore: number;
+  confidence: number;
+  displayUpgrade: string;
+  reasoning: string;
+  agentRoutes: HermesAgentRoute[];
+};
+
+export type HermesIntelligence = {
+  source: "hermes-4" | "heuristic";
+  brief: HermesBrief;
+  model?: string;
+  memoryDepth?: number;
+  createdAt?: string;
+  error?: string;
+};
+
+export type HermesWorldState = {
+  connectors: Array<{ id: string; name: string; status: string; nextStep?: string }>;
+  revenue: RevenueSummary;
+  automation: AutomationSummary;
+  agents: Array<{ id: string; name: string; role: string; connector: string; ready: boolean }>;
+};
+
+// Ask Hermes-4 (Nous Research) to reason over the live world state. The caller
+// passes a deterministic fallback brief so the UI still works when the function
+// is not deployed or the model is unreachable — Hermes upgrades the read, it is
+// never a hard dependency for the page.
+export const loadHermesBrief = async (
+  state: HermesWorldState,
+  fallback: HermesBrief,
+): Promise<HermesIntelligence> => {
+  const endpoint = functionUrl("hermes-intelligence");
+  const headers = await authHeaders();
+  if (!endpoint || !("Authorization" in headers)) {
+    return { source: "heuristic", brief: fallback };
+  }
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(state),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result?.brief) {
+      return { source: "heuristic", brief: fallback, error: result?.error ?? `HTTP ${response.status}` };
+    }
+    return {
+      source: "hermes-4",
+      brief: { ...fallback, ...result.brief },
+      model: result.model,
+      memoryDepth: result.memoryDepth,
+      createdAt: result.createdAt,
+    };
+  } catch {
+    return { source: "heuristic", brief: fallback, error: "Hermes endpoint unreachable" };
+  }
+};
+
+export type HermesHistoryEntry = {
+  createdAt: string;
+  mood: string;
+  bottleneck: string;
+  intelligenceScore: number;
+  model: string;
+};
+
+// Recent Hermes briefs for the signed-in operator, newest first. Surfaces the
+// memory loop in the UI: how the read, bottleneck, and IQ moved over time.
+export const loadHermesHistory = async (limit = 8): Promise<HermesHistoryEntry[]> => {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session?.user) return [];
+  const { data: rows, error } = await supabase
+    .from("agent_hermes_briefs" as never)
+    .select("created_at,mood,bottleneck,intelligence_score,model")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !rows) return [];
+  return (rows as unknown as Array<Record<string, unknown>>).map((row) => ({
+    createdAt: String(row.created_at ?? ""),
+    mood: String(row.mood ?? ""),
+    bottleneck: String(row.bottleneck ?? ""),
+    intelligenceScore: Number(row.intelligence_score ?? 0),
+    model: String(row.model ?? ""),
+  }));
+};
+
 export const executeBusinessAction = async (action: BusinessAction, connectors: Connector[]): Promise<{ ok: boolean; message: string }> => {
   const connector = connectors.find((item) => item.id === action.connector);
   if (!connector?.endpoint || connector.status !== "ready") {
