@@ -391,6 +391,41 @@ export const decideCreativePackage = async (id: string, status: "approved" | "re
   return { ok: true, message: status === "approved" ? "Approved. Publishing stays a separate gated step." : "Rejected." };
 };
 
+export type ProspectRecord = {
+  id: string;
+  businessName: string;
+  website: string | null;
+  contactRoute: string | null;
+  problemEvidence: string;
+  offerFit: string;
+  status: string;
+  source: string;
+  createdAt: string;
+};
+
+// Maya's qualified prospects, newest first. RLS-scoped to the operator.
+export const loadProspects = async (limit = 25): Promise<ProspectRecord[]> => {
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session?.user) return [];
+  const { data, error } = await supabase
+    .from("agent_prospects" as never)
+    .select("id,business_name,website,contact_route,problem_evidence,offer_fit,status,source,created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row.id),
+    businessName: String(row.business_name ?? ""),
+    website: typeof row.website === "string" ? row.website : null,
+    contactRoute: typeof row.contact_route === "string" ? row.contact_route : null,
+    problemEvidence: String(row.problem_evidence ?? ""),
+    offerFit: String(row.offer_fit ?? ""),
+    status: String(row.status ?? "qualified"),
+    source: String(row.source ?? ""),
+    createdAt: String(row.created_at ?? ""),
+  }));
+};
+
 export type SystemHealth = { id: string; name: string; ok: boolean; detail: string };
 
 // Probe the core (no-JWT) edge functions' GET health so the world can show which

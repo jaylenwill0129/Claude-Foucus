@@ -6,9 +6,9 @@ import {
 import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
-  loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory,
+  loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
-  type SystemHealth, type HermesHistoryEntry,
+  type SystemHealth, type HermesHistoryEntry, type ProspectRecord,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
@@ -247,6 +247,7 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
       )}
 
       {place.id === "creative" && <CreativePanel authed={authed} />}
+      {place.id === "research" && <ProspectsPanel authed={authed} />}
       {place.connector && <JobsPanel agentName={place.name} authed={authed} />}
       {place.id === "hermes" && (
         <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
@@ -316,6 +317,31 @@ function CreativePanel({ authed }: { authed: boolean }) {
                 <button onClick={() => decide(p.id, "approved")} disabled={deciding === p.id} className="flex h-7 items-center gap-1 rounded-lg bg-[#dff54a] px-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40">{deciding === p.id ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} />}Approve</button>
               </div>
             )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProspectsPanel({ authed }: { authed: boolean }) {
+  const [prospects, setProspects] = useState<ProspectRecord[]>([]);
+  useEffect(() => { loadProspects().then(setProspects); }, []);
+  return (
+    <div className="mt-5">
+      <div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Qualified prospects</p><span className="text-[9px] font-bold text-slate-400">{prospects.length}</span></div>
+      {!authed && <p className="mt-2 text-[10px] text-slate-500">Sign in to see Maya's prospects.</p>}
+      {authed && prospects.length === 0 && <p className="mt-2 text-[10px] text-slate-500">No prospects yet. Maya pulls from OpenStreetMap (free, no plan limit).</p>}
+      <div className="mt-3 space-y-2">
+        {prospects.map((p) => (
+          <div key={p.id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-bold">{p.businessName}</p>
+              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[8px] font-bold uppercase text-emerald-300">{p.status}</span>
+            </div>
+            {p.website && <a href={p.website} target="_blank" rel="noreferrer" className="mt-0.5 block truncate text-[10px] text-sky-300 hover:underline">{p.website}</a>}
+            <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{p.problemEvidence}</p>
+            <p className="mt-1 text-[9px] text-slate-500">source: {p.source}{p.contactRoute ? ` · ${p.contactRoute}` : ""}</p>
           </div>
         ))}
       </div>
