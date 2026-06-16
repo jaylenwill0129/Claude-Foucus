@@ -6,8 +6,9 @@ import {
 import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
-  loadAutomationJobs, decideAutomationJob,
+  loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
+  type SystemHealth, type HermesHistoryEntry,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
@@ -49,6 +50,8 @@ export default function World() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [relayMsg, setRelayMsg] = useState("");
+  const [systems, setSystems] = useState<SystemHealth[]>([]);
+  const [history, setHistory] = useState<HermesHistoryEntry[]>([]);
 
   const connectorMap = useMemo(() => Object.fromEntries(connectors.map((c) => [c.id, c])), [connectors]);
   const relay = openclawStatus();
@@ -69,6 +72,8 @@ export default function World() {
     setThinking(true);
     const intel = await loadHermesBrief(buildHermesWorldState(PLACES.filter((p) => p.connector).map((p) => ({ id: p.id, name: p.name, role: p.role, connector: p.connector! })), nc, nr, na), computeFallbackBrief(nc, nr, na));
     setHermes(intel); setThinking(false);
+    setSystems(await loadSystemsHealth());
+    setHistory(await loadHermesHistory());
   }, []);
 
   useEffect(() => {
@@ -156,6 +161,23 @@ export default function World() {
           <p className="mt-1 text-xs font-semibold text-slate-100">{brief.mood}</p>
           <p className="mt-1 text-[10px] leading-relaxed text-slate-400"><span className="text-amber-300">{brief.bottleneck}</span> — {brief.route}</p>
         </div>
+
+        {/* systems health */}
+        <div className="absolute bottom-4 left-4 rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
+          <div className="flex items-center justify-between gap-6">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Systems</p>
+            <p className="text-[9px] font-bold text-slate-400">{systems.filter((s) => s.ok).length}/{systems.length || 5} green</p>
+          </div>
+          <div className="mt-2 space-y-1">
+            {systems.map((s) => (
+              <div key={s.id} className="flex items-center gap-2" title={s.detail}>
+                <span className={`h-1.5 w-1.5 rounded-full ${s.ok ? "bg-emerald-400" : "bg-amber-400"}`} />
+                <span className="text-[10px] text-slate-300">{s.name}</span>
+              </div>
+            ))}
+            {systems.length === 0 && <span className="text-[10px] text-slate-500">Probing…</span>}
+          </div>
+        </div>
       </div>
 
       {/* DRAWER */}
@@ -167,6 +189,7 @@ export default function World() {
           brief={brief}
           relay={relay}
           relayMsg={relayMsg}
+          history={history}
           onRelayBrief={relayBrief}
           onClose={() => { setSelectedId(null); setRelayMsg(""); }}
           authed={Boolean(user)}
@@ -185,10 +208,10 @@ function Hud({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, onRelayBrief, onClose, authed }: {
+function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history, onRelayBrief, onClose, authed }: {
   place: Place; ready: boolean; connector?: { status: string; nextStep: string; detail: string };
   brief: HermesIntelligence["brief"]; relay: ReturnType<typeof openclawStatus>; relayMsg: string;
-  onRelayBrief: () => void; onClose: () => void; authed: boolean;
+  history: HermesHistoryEntry[]; onRelayBrief: () => void; onClose: () => void; authed: boolean;
 }) {
   const playbook = agentPlaybooks[place.id];
   const route = brief.agentRoutes.find((r) => r.agent.toLowerCase() === place.name.toLowerCase());
@@ -231,6 +254,23 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, onRelayB
           <p className="mt-1 text-[10px] leading-relaxed text-slate-300">{brief.reasoning}</p>
           <button onClick={onRelayBrief} disabled={!relay.connected} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40"><Send size={12} />Relay brief to OpenClaw</button>
           {relayMsg && <p className="mt-2 text-[10px] text-slate-400">{relayMsg}</p>}
+          {history.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Memory ({history.length})</p>
+              <div className="mt-2 space-y-1.5">
+                {history.map((h, i) => {
+                  const prev = history[i + 1];
+                  const delta = prev ? h.intelligenceScore - prev.intelligenceScore : 0;
+                  return (
+                    <div key={h.createdAt} className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/30 px-2 py-1.5">
+                      <span className="truncate text-[10px] text-slate-300">{h.mood}</span>
+                      <span className="shrink-0 font-mono text-[10px] font-bold text-slate-200">{h.intelligenceScore}{delta !== 0 && <span className={delta > 0 ? "text-emerald-400" : "text-amber-400"}> {delta > 0 ? "▲" : "▼"}{Math.abs(delta)}</span>}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {place.id === "openclaw" && (

@@ -391,6 +391,32 @@ export const decideCreativePackage = async (id: string, status: "approved" | "re
   return { ok: true, message: status === "approved" ? "Approved. Publishing stays a separate gated step." : "Rejected." };
 };
 
+export type SystemHealth = { id: string; name: string; ok: boolean; detail: string };
+
+// Probe the core (no-JWT) edge functions' GET health so the world can show which
+// subsystems are truly green. These endpoints return { configured: bool }.
+export const loadSystemsHealth = async (): Promise<SystemHealth[]> => {
+  const systems: Array<{ id: string; name: string; fn: string }> = [
+    { id: "hermes", name: "Hermes-4 brain", fn: "hermes-intelligence" },
+    { id: "studio", name: "Signal Studio", fn: "creative-studio" },
+    { id: "planner", name: "Autopilot planner", fn: "autopilot-planner" },
+    { id: "worker", name: "Automation worker", fn: "automation-worker" },
+    { id: "orchestrator", name: "Agent brain", fn: "agent-orchestrator" },
+  ];
+  return Promise.all(systems.map(async (s) => {
+    const url = functionUrl(s.fn);
+    if (!url) return { id: s.id, name: s.name, ok: false, detail: "No endpoint configured." };
+    try {
+      const r = await fetch(url);
+      const body = await r.json().catch(() => ({}));
+      const ok = Boolean(body?.configured);
+      return { id: s.id, name: s.name, ok, detail: ok ? "Online" : "Deployed; needs a secret." };
+    } catch {
+      return { id: s.id, name: s.name, ok: false, detail: "Unreachable." };
+    }
+  }));
+};
+
 export type AutomationJobStatus = "queued" | "awaiting_approval" | "running" | "succeeded" | "failed" | "cancelled";
 
 export type AutomationJob = {
