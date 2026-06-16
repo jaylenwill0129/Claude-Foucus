@@ -35,6 +35,18 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
     cadence: "24/7 preparation loop. On error, restart from the previous safe preparation phase.",
     guardrails: ["Adhere to TikTok Community Guidelines & ToS.", "Copyright + account-health checks before approval-ready.", "No blind upload loop."],
   },
+  product: {
+    loop: [
+      { phase: "Market intelligence", action: "Research demand, competitors, pricing, and the expensive problem; go/no-go status.", autonomy: "autonomous" },
+      { phase: "Brief + outline", action: "Define audience, promise, scope, and chapter structure.", autonomy: "autonomous" },
+      { phase: "Manuscript + product draft", action: "Write the manuscript and render the sellable HTML/PDF with worksheets.", autonomy: "autonomous" },
+      { phase: "Editorial / quality / compliance", action: "Self-review and a compliance gate; block on failed claims/originality.", autonomy: "autonomous" },
+      { phase: "Listing + marketing pack", action: "Draft Gumroad copy + pricing and generate cover, mockup, pins, UGC scripts, calendar.", autonomy: "autonomous" },
+      { phase: "Publish", action: "List to Gumroad/Shopify and charge — held for operator approval, never auto-published.", autonomy: "approval_gated" },
+    ],
+    cadence: "Runs the full product pipeline on demand; publishing is a single gated step.",
+    guardrails: ["No publish or charge without approval + receipt.", "Compliance/claims review must pass first.", "Original work only; respect platform ToS."],
+  },
   sales: {
     loop: [
       { phase: "Lead generation", action: "Find B2B partners via Apollo/HubSpot first; OpenClaw + LinkedIn only as a compliant fallback.", autonomy: "autonomous" },
