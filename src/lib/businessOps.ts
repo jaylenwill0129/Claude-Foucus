@@ -304,8 +304,8 @@ export const loadHermesHistory = async (limit = 8): Promise<HermesHistoryEntry[]
 export type CreativePackage = {
   title: string;
   trendCluster: { tags: string[]; rationale: string; reachToEffort: string };
-  track: { genre: string; bpm: number; mood: string; structure: string; durationSec: number };
-  visual: { concept: string; palette: string; motion: string };
+  track: { genre: string; bpm: number; mood: string; structure: string; durationSec: number; assetUrl?: string };
+  visual: { concept: string; palette: string; motion: string; assetUrl?: string };
   caption: string;
   hashtags: string[];
   reasoning: string;

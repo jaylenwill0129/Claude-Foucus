@@ -306,7 +306,9 @@ function CreativePanel({ authed }: { authed: boolean }) {
         {packages.map((p) => (
           <div key={p.id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
             <div className="flex items-center justify-between gap-2"><p className="text-[11px] font-bold">{p.title}</p><span className={`rounded px-1.5 py-0.5 text-[8px] font-bold uppercase ${p.status === "approved" ? "bg-emerald-500/15 text-emerald-300" : p.status === "rejected" ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300"}`}>{p.status.replaceAll("_", " ")}</span></div>
+            {p.visual.assetUrl && <img src={p.visual.assetUrl} alt={p.title} className="mt-2 aspect-square w-full rounded-lg border border-slate-800 object-cover" loading="lazy" />}
             <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{p.caption}</p>
+            {p.track.assetUrl && <audio controls src={p.track.assetUrl} className="mt-2 h-8 w-full" />}
             {p.pendingProviders.length > 0 && <p className="mt-1 text-[9px] text-amber-300/70">pending: {p.pendingProviders.join(", ")}</p>}
             {p.status === "awaiting_approval" && (
               <div className="mt-2 flex justify-end gap-2">
