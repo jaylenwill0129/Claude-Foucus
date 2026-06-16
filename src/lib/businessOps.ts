@@ -391,6 +391,65 @@ export const decideCreativePackage = async (id: string, status: "approved" | "re
   return { ok: true, message: status === "approved" ? "Approved. Publishing stays a separate gated step." : "Rejected." };
 };
 
+export type AutomationJobStatus = "queued" | "awaiting_approval" | "running" | "succeeded" | "failed" | "cancelled";
+
+export type AutomationJob = {
+  id: string;
+  agent: string;
+  actionType: string;
+  connector: string;
+  status: AutomationJobStatus;
+  riskLevel: string;
+  requiresApproval: boolean;
+  directive: string | null;
+  note: string | null;
+  lastError: string | null;
+  createdAt: string;
+};
+
+// The operator's automation jobs (planner output), newest first. RLS-scoped.
+export const loadAutomationJobs = async (limit = 25): Promise<AutomationJob[]> => {
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session?.user) return [];
+  const { data, error } = await supabase
+    .from("agent_automation_jobs" as never)
+    .select("id,agent,action_type,connector,status,risk_level,requires_approval,payload,last_error,created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((row) => {
+    const payload = (row.payload as Record<string, unknown>) ?? {};
+    return {
+      id: String(row.id),
+      agent: String(row.agent ?? ""),
+      actionType: String(row.action_type ?? ""),
+      connector: String(row.connector ?? ""),
+      status: (row.status as AutomationJobStatus) ?? "queued",
+      riskLevel: String(row.risk_level ?? "low"),
+      requiresApproval: Boolean(row.requires_approval),
+      directive: typeof payload.hermesDirective === "string" ? payload.hermesDirective : null,
+      note: typeof payload.note === "string" ? payload.note : null,
+      lastError: typeof row.last_error === "string" ? row.last_error : null,
+      createdAt: String(row.created_at ?? ""),
+    };
+  });
+};
+
+// Operator decision on a queued/awaiting job. Approving releases it to the worker
+// (status=queued, requires_approval=false); the worker still enforces final policy
+// before any external send. Rejecting cancels it. No external side effect here.
+export const decideAutomationJob = async (id: string, decision: "approved" | "rejected"): Promise<{ ok: boolean; message: string }> => {
+  const { data: sess } = await supabase.auth.getSession();
+  const userId = sess.session?.user?.id;
+  if (!userId) return { ok: false, message: "Sign in to decide jobs." };
+  const patch = decision === "approved"
+    ? { status: "queued", requires_approval: false, approved_at: new Date().toISOString(), approved_by: userId, updated_at: new Date().toISOString() }
+    : { status: "cancelled", updated_at: new Date().toISOString() };
+  const { error } = await supabase.from("agent_automation_jobs" as never).update(patch as never).eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, message: decision === "approved" ? "Approved. Released to the worker (final policy still applies before any send)." : "Rejected." };
+};
+
 export const executeBusinessAction = async (action: BusinessAction, connectors: Connector[]): Promise<{ ok: boolean; message: string }> => {
   const connector = connectors.find((item) => item.id === action.connector);
   if (!connector?.endpoint || connector.status !== "ready") {

@@ -6,7 +6,8 @@ import {
 import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
-  type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord,
+  loadAutomationJobs, decideAutomationJob,
+  type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
@@ -223,6 +224,7 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, onRelayB
       )}
 
       {place.id === "creative" && <CreativePanel authed={authed} />}
+      {place.connector && <JobsPanel agentName={place.name} authed={authed} />}
       {place.id === "hermes" && (
         <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
           <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Reasoning</p>
@@ -270,6 +272,40 @@ function CreativePanel({ authed }: { authed: boolean }) {
               <div className="mt-2 flex justify-end gap-2">
                 <button onClick={() => decide(p.id, "rejected")} disabled={deciding === p.id} className="flex h-7 items-center gap-1 rounded-lg border border-slate-700 px-2 text-[10px] font-bold text-rose-300 disabled:opacity-40"><X size={11} />Reject</button>
                 <button onClick={() => decide(p.id, "approved")} disabled={deciding === p.id} className="flex h-7 items-center gap-1 rounded-lg bg-[#dff54a] px-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40">{deciding === p.id ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} />}Approve</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function JobsPanel({ agentName, authed }: { agentName: string; authed: boolean }) {
+  const [jobs, setJobs] = useState<AutomationJob[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState("");
+  const reload = useCallback(async () => setJobs((await loadAutomationJobs()).filter((j) => j.agent.toLowerCase() === agentName.toLowerCase())), [agentName]);
+  useEffect(() => { reload(); }, [reload]);
+  const decide = async (id: string, d: "approved" | "rejected") => { setBusy(id); const r = await decideAutomationJob(id, d); setMsg(r.message); await reload(); setBusy(null); };
+  const badge = (s: string) => s === "succeeded" ? "bg-emerald-500/15 text-emerald-300" : s === "failed" || s === "cancelled" ? "bg-rose-500/15 text-rose-300" : s === "awaiting_approval" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300";
+  return (
+    <div className="mt-5">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Jobs &amp; approvals</p>
+      {!authed && <p className="mt-2 text-[10px] text-slate-500">Sign in to see this agent's queued work.</p>}
+      {authed && jobs.length === 0 && <p className="mt-2 text-[10px] text-slate-500">No jobs yet. Arm Autopilot to plan work.</p>}
+      {msg && <p className="mt-2 text-[10px] text-amber-300/80">{msg}</p>}
+      <div className="mt-3 space-y-2">
+        {jobs.map((j) => (
+          <div key={j.id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+            <div className="flex items-center justify-between gap-2"><p className="text-[11px] font-semibold">{j.actionType.replaceAll("_", " ")}</p><span className={`rounded px-1.5 py-0.5 text-[8px] font-bold uppercase ${badge(j.status)}`}>{j.status.replaceAll("_", " ")}</span></div>
+            {j.directive && <p className="mt-1 text-[10px] leading-relaxed text-slate-400">Hermes: {j.directive}</p>}
+            {j.note && <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{j.note}</p>}
+            {j.lastError && <p className="mt-1 text-[9px] text-rose-300/70">{j.lastError}</p>}
+            {j.status === "awaiting_approval" && (
+              <div className="mt-2 flex justify-end gap-2">
+                <button onClick={() => decide(j.id, "rejected")} disabled={busy === j.id} className="flex h-7 items-center gap-1 rounded-lg border border-slate-700 px-2 text-[10px] font-bold text-rose-300 disabled:opacity-40"><X size={11} />Reject</button>
+                <button onClick={() => decide(j.id, "approved")} disabled={busy === j.id} className="flex h-7 items-center gap-1 rounded-lg bg-[#dff54a] px-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40">{busy === j.id ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} />}Approve</button>
               </div>
             )}
           </div>
