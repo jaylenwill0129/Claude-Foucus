@@ -341,6 +341,56 @@ export const runCreativeCycle = async (input: { discoverTags?: string[]; seedThe
   }
 };
 
+export type CreativePackageStatus = "awaiting_approval" | "approved" | "rejected" | "published";
+
+export type CreativePackageRecord = CreativePackage & {
+  id: string;
+  status: CreativePackageStatus;
+  pendingProviders: string[];
+  createdAt: string;
+  model: string;
+};
+
+// Operator's prepared creative packages, newest first. Read is RLS-scoped to the
+// signed-in operator.
+export const loadCreativePackages = async (limit = 10): Promise<CreativePackageRecord[]> => {
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session?.user) return [];
+  const { data, error } = await supabase
+    .from("agent_creative_packages" as never)
+    .select("id,title,trend_cluster,track,visual,caption,hashtags,pending_providers,status,reasoning,model,created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row.id),
+    title: String(row.title ?? ""),
+    trendCluster: (row.trend_cluster as CreativePackage["trendCluster"]) ?? { tags: [], rationale: "", reachToEffort: "medium" },
+    track: (row.track as CreativePackage["track"]) ?? { genre: "", bpm: 0, mood: "", structure: "", durationSec: 0 },
+    visual: (row.visual as CreativePackage["visual"]) ?? { concept: "", palette: "", motion: "" },
+    caption: String(row.caption ?? ""),
+    hashtags: Array.isArray(row.hashtags) ? (row.hashtags as string[]) : [],
+    reasoning: String(row.reasoning ?? ""),
+    pendingProviders: Array.isArray(row.pending_providers) ? (row.pending_providers as string[]) : [],
+    status: (row.status as CreativePackageStatus) ?? "awaiting_approval",
+    model: String(row.model ?? ""),
+    createdAt: String(row.created_at ?? ""),
+  }));
+};
+
+// Operator decision on a prepared package. Approving marks it ready; it does NOT
+// post anything — external publishing remains a separate gated action.
+export const decideCreativePackage = async (id: string, status: "approved" | "rejected"): Promise<{ ok: boolean; message: string }> => {
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session?.user) return { ok: false, message: "Sign in to decide packages." };
+  const { error } = await supabase
+    .from("agent_creative_packages" as never)
+    .update({ status, decided_at: new Date().toISOString() } as never)
+    .eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, message: status === "approved" ? "Approved. Publishing stays a separate gated step." : "Rejected." };
+};
+
 export const executeBusinessAction = async (action: BusinessAction, connectors: Connector[]): Promise<{ ok: boolean; message: string }> => {
   const connector = connectors.find((item) => item.id === action.connector);
   if (!connector?.endpoint || connector.status !== "ready") {

@@ -33,13 +33,15 @@ import {
   loadHermesHistory,
   loadRevenueSummary,
   type HermesHistoryEntry,
+  decideCreativePackage,
+  loadCreativePackages,
   probeBusinessConnectors,
   runCreativeCycle,
   setAutomationEnabled,
   type AutomationSummary,
   type BusinessAction,
   type ConnectorId,
-  type CreativePackage,
+  type CreativePackageRecord,
   type HermesIntelligence,
   type RevenueSummary,
 } from "@/lib/businessOps";
@@ -192,20 +194,30 @@ export default function AgentWorld() {
   };
 
   const [creativeRunning, setCreativeRunning] = useState(false);
-  const [creativePackage, setCreativePackage] = useState<CreativePackage | null>(null);
-  const [creativePending, setCreativePending] = useState<string[]>([]);
+  const [creativePackages, setCreativePackages] = useState<CreativePackageRecord[]>([]);
   const [creativeMessage, setCreativeMessage] = useState("");
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+  const refreshCreative = useCallback(async () => {
+    setCreativePackages(await loadCreativePackages());
+  }, []);
   const runCreative = async () => {
     setCreativeRunning(true);
     setCreativeMessage("");
     const result = await runCreativeCycle({ discoverTags: ["#ai", "#summergarden", "#lofi"] });
     setCreativeMessage(result.message);
-    if (result.ok && result.pkg) {
-      setCreativePackage(result.pkg);
-      setCreativePending(result.pendingProviders ?? []);
-    }
+    await refreshCreative();
     setCreativeRunning(false);
   };
+  const decidePackage = async (id: string, status: "approved" | "rejected") => {
+    setDecidingId(id);
+    const result = await decideCreativePackage(id, status);
+    setCreativeMessage(result.message);
+    await refreshCreative();
+    setDecidingId(null);
+  };
+  useEffect(() => {
+    if (selected.id === "creative") refreshCreative();
+  }, [selected.id, refreshCreative]);
 
   return (
     <main className="min-h-screen bg-[#f3f1eb] text-[#18201d]">
@@ -415,23 +427,33 @@ export default function AgentWorld() {
                 <p className="text-xs font-bold">Signal Studio</p>
                 <button onClick={runCreative} disabled={creativeRunning} className="flex items-center gap-1.5 rounded-lg bg-[#18201d] px-3 py-2 text-[10px] font-bold text-white disabled:opacity-40">{creativeRunning ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}{creativeRunning ? "Preparing" : "Run preparation cycle"}</button>
               </div>
-              <p className="mt-1 text-[10px] text-[#7b847f]">Aria prepares a release package from live trends. Publishing stays operator-approved.</p>
+              <p className="mt-1 text-[10px] text-[#7b847f]">Aria prepares a release package from live trends. You approve before anything is published.</p>
               {creativeMessage && <p className="mt-2 text-[10px] font-medium text-[#9a6044]">{creativeMessage}</p>}
-              {creativePackage && (
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-xl border border-[#e0ddd4] bg-white p-4">
-                    <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">{creativePackage.title}</p><span className="rounded-full bg-[#f1e1d8] px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[#9a6044]">awaiting approval</span></div>
-                    <p className="mt-2 text-[11px] leading-relaxed text-[#4b5550]">{creativePackage.caption}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">{creativePackage.hashtags.map((h) => <span key={h} className="rounded-full bg-[#eef0e9] px-2 py-0.5 text-[9px] font-medium text-[#5f6863]">{h}</span>)}</div>
+              {creativePackages.length === 0 && <p className="mt-4 text-[10px] text-[#8a928e]">No packages yet. Run a preparation cycle to create one.</p>}
+              <div className="mt-4 space-y-3">
+                {creativePackages.map((pkg) => (
+                  <div key={pkg.id} className="rounded-xl border border-[#e0ddd4] bg-white p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold">{pkg.title}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider ${pkg.status === "approved" ? "bg-[#e1f0e3] text-[#477d53]" : pkg.status === "rejected" ? "bg-[#efe2dd] text-[#9a5b44]" : pkg.status === "published" ? "bg-[#dfe9f0] text-[#3f6480]" : "bg-[#f1e1d8] text-[#9a6044]"}`}>{pkg.status.replaceAll("_", " ")}</span>
+                    </div>
+                    <p className="mt-2 text-[11px] leading-relaxed text-[#4b5550]">{pkg.caption}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">{pkg.hashtags.map((h) => <span key={h} className="rounded-full bg-[#eef0e9] px-2 py-0.5 text-[9px] font-medium text-[#5f6863]">{h}</span>)}</div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <StudioFacet label="Track" value={`${pkg.track.genre} · ${pkg.track.bpm} BPM`} detail={`${pkg.track.mood} · ${pkg.track.durationSec}s`} pending={pkg.pendingProviders.includes("music")} />
+                      <StudioFacet label="Visual" value={pkg.visual.palette} detail={pkg.visual.motion} pending={pkg.pendingProviders.includes("visual")} />
+                    </div>
+                    {pkg.pendingProviders.length > 0 && <p className="mt-2 text-[9px] font-medium text-[#9a6044]">Pending providers: {pkg.pendingProviders.join(", ")} (concepts ready; rendering needs a configured provider).</p>}
+                    {pkg.status === "awaiting_approval" && (
+                      <div className="mt-3 flex justify-end gap-2">
+                        <button onClick={() => decidePackage(pkg.id, "rejected")} disabled={decidingId === pkg.id} className="flex h-8 items-center gap-1.5 rounded-lg border border-[#dedbd2] px-3 text-[10px] font-bold text-[#9a5b44] hover:bg-[#f3f1eb] disabled:opacity-40"><X size={12} />Reject</button>
+                        <button onClick={() => decidePackage(pkg.id, "approved")} disabled={decidingId === pkg.id} className="flex h-8 items-center gap-1.5 rounded-lg bg-[#18201d] px-3 text-[10px] font-bold text-white disabled:opacity-40">{decidingId === pkg.id ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}Approve</button>
+                      </div>
+                    )}
+                    {pkg.status === "approved" && <p className="mt-3 text-[9px] font-medium text-[#477d53]">Approved — ready to publish (publishing is a separate gated step).</p>}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <StudioFacet label="Track" value={`${creativePackage.track.genre} · ${creativePackage.track.bpm} BPM`} detail={`${creativePackage.track.mood} · ${creativePackage.track.durationSec}s`} pending={creativePending.includes("music")} />
-                    <StudioFacet label="Visual" value={creativePackage.visual.palette} detail={creativePackage.visual.motion} pending={creativePending.includes("visual")} />
-                  </div>
-                  <div className="rounded-xl border border-[#e0ddd4] bg-white p-3"><p className="text-[8px] font-bold uppercase tracking-wider text-[#969d99]">Visual concept</p><p className="mt-1 text-[10px] leading-relaxed text-[#68716d]">{creativePackage.visual.concept}</p></div>
-                  {creativePending.length > 0 && <p className="text-[9px] font-medium text-[#9a6044]">Pending providers: {creativePending.join(", ")} (concepts ready; rendering needs a configured provider).</p>}
-                </div>
-              )}
+                ))}
+              </div>
             </section>
           )}
 
