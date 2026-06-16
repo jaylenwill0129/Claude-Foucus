@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decidePlan, type HermesRoute } from "../_shared/plannerPolicy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,8 +25,6 @@ type Policy = {
 const slot = (hours: number) => Math.floor(Date.now() / (hours * 60 * 60 * 1000));
 const daySlot = () => new Date().toISOString().slice(0, 10);
 
-type HermesRoute = { agent?: string; directive?: string; priority?: "now" | "next" | "hold" };
-
 // Read the operator's most recent Hermes brief so the planner can let Hermes's
 // reasoning drive which autonomous jobs to queue. Defensive: returns [] if no
 // brief exists or the read fails, preserving the original fixed-plan behavior.
@@ -43,12 +42,6 @@ const loadHermesRoutes = async (
   const routes = (data as { agent_routes?: unknown } | null)?.agent_routes;
   return Array.isArray(routes) ? (routes as HermesRoute[]) : [];
 };
-
-// Hermes routes by display name (Maya/Marcus/Lena). "hold" means Hermes judged
-// this agent low-leverage right now, so skip its optional autonomous job this cycle.
-const routeFor = (routes: HermesRoute[], agentName: string) =>
-  routes.find((r) => (r.agent ?? "").toLowerCase() === agentName.toLowerCase());
-const isHeld = (route?: HermesRoute) => route?.priority === "hold";
 
 const insertJob = async (
   supabase: ReturnType<typeof createClient>,
@@ -125,12 +118,10 @@ Deno.serve(async (req) => {
   for (const policy of (policies ?? []) as Policy[]) {
     const crmSlot = slot(4);
     const routes = await loadHermesRoutes(supabase, policy.user_id);
-    const mayaRoute = routeFor(routes, "Maya");
-    const marcusRoute = routeFor(routes, "Marcus");
-    const lenaRoute = routeFor(routes, "Lena");
+    const plan = decidePlan(policy, routes);
 
     // Maya's CRM sync is autonomous unless Hermes parked her this cycle.
-    if (policy.allow_crm_sync && !isHeld(mayaRoute)) {
+    if (plan.crm === "plan") {
       planned.push({
         connector: "crm",
         ...(await insertJob(supabase, policy, {
@@ -140,10 +131,10 @@ Deno.serve(async (req) => {
           risk_level: "low",
           requires_approval: false,
           idempotency_key: `crm-sync:${policy.user_id}:${crmSlot}`,
-          payload: { keywords: policy.prospect_keywords, limit: 5, hermesDirective: mayaRoute?.directive ?? null },
+          payload: { keywords: policy.prospect_keywords, limit: 5, hermesDirective: plan.directives.Maya },
         })),
       });
-    } else if (isHeld(mayaRoute)) {
+    } else if (plan.crm === "skip_hold") {
       planned.push({ connector: "crm", skipped: true, reason: "hermes_hold" });
     }
 
@@ -162,14 +153,13 @@ Deno.serve(async (req) => {
           campaign: "qualified-prospect-follow-up",
           note: "Draft only. Operator approval is required before Resend sends anything.",
           maxRecipients: 5,
-          hermesDirective: marcusRoute?.directive ?? null,
-          hermesPriority: marcusRoute?.priority ?? null,
+          hermesDirective: plan.directives.Marcus,
         },
       })),
     });
 
     // Lena's draft product is autonomous unless Hermes parked her this cycle.
-    if (policy.allow_draft_products && !isHeld(lenaRoute)) {
+    if (plan.storefront === "plan") {
       planned.push({
         connector: "storefront",
         ...(await insertJob(supabase, policy, {
@@ -185,11 +175,11 @@ Deno.serve(async (req) => {
             productType: "Digital product",
             vendor: "Operator OS",
             priceUsd: 29,
-            hermesDirective: lenaRoute?.directive ?? null,
+            hermesDirective: plan.directives.Lena,
           },
         })),
       });
-    } else if (isHeld(lenaRoute)) {
+    } else if (plan.storefront === "skip_hold") {
       planned.push({ connector: "storefront", skipped: true, reason: "hermes_hold" });
     }
 
