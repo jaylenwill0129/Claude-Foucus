@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scoreKnowledgeUsage, extractTeamLearning, rankKnowledge } from "../../../supabase/functions/_shared/knowledgeEval";
+import { scoreKnowledgeUsage, extractTeamLearning, rankKnowledge, isNearDuplicate } from "../../../supabase/functions/_shared/knowledgeEval";
 
 describe("scoreKnowledgeUsage", () => {
   it("flags an output that references the collective knowledge", () => {
@@ -50,6 +50,26 @@ describe("rankKnowledge", () => {
   it("falls back to recency (input order) when nothing overlaps", () => {
     const ranked = rankKnowledge("unrelated quantum logistics query", rows, 3);
     expect(ranked.map((r) => r.topic)).toEqual(["creative trends", "contractor outreach", "finance"]);
+  });
+});
+
+describe("isNearDuplicate", () => {
+  const onBus = ["HVAC owners reply fastest to follow-up framed as lost revenue"];
+
+  it("flags a re-broadcast of an insight already on the bus", () => {
+    expect(isNearDuplicate("HVAC owners reply fastest to follow-up framed as lost revenue", onBus)).toBe(true);
+  });
+
+  it("flags a lightly-reworded near-duplicate", () => {
+    expect(isNearDuplicate("HVAC owners reply fastest when follow-up is framed as lost revenue today", onBus)).toBe(true);
+  });
+
+  it("lets a genuinely new insight through", () => {
+    expect(isNearDuplicate("Roofing leads convert best on Tuesday mornings", onBus)).toBe(false);
+  });
+
+  it("treats an empty bus as no duplicate", () => {
+    expect(isNearDuplicate("anything", [])).toBe(false);
   });
 });
 

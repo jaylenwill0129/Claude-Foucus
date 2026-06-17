@@ -73,3 +73,21 @@ export function extractTeamLearning(output: string): string | null {
   const line = m[1].split(/\r?\n/)[0].trim();
   return line.length >= 4 ? line.slice(0, 280) : null;
 }
+
+// Jaccard similarity over meaningful tokens (0..1). Used to keep the bus from
+// filling with near-duplicate learnings as agents broadcast every run.
+export function jaccard(a: string, b: string): number {
+  const A = new Set(tokenize(a));
+  const B = new Set(tokenize(b));
+  if (!A.size && !B.size) return 1;
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const t of A) if (B.has(t)) inter++;
+  return inter / (A.size + B.size - inter);
+}
+
+// True if a candidate learning is essentially already on the bus, so we skip
+// re-broadcasting it (keeps ranked retrieval signal-rich, not noisy).
+export function isNearDuplicate(candidate: string, existing: string[], threshold = 0.8): boolean {
+  return existing.some((e) => jaccard(candidate, e) >= threshold);
+}

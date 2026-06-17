@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callHermes, HERMES_MODEL, hermesConfigured } from "../_shared/hermes.ts";
 import { PLAYBOOKS, playbookPrompt } from "../_shared/playbooks.ts";
-import { extractTeamLearning, rankKnowledge } from "../_shared/knowledgeEval.ts";
+import { extractTeamLearning, isNearDuplicate, rankKnowledge } from "../_shared/knowledgeEval.ts";
 
 // Appended to every system prompt so each agent contributes a reusable insight
 // back to the shared learning bus (closing the learn-from-results loop).
@@ -99,11 +99,20 @@ Deno.serve(async (req) => {
   const sysPrompt = systemPromptFor(job.agent) + teamKnowledge + LEARNING_INSTRUCTION;
 
   // Persist a reusable insight the agent surfaced back to the shared bus so the
-  // whole team learns from this run. Best-effort: never fails the response.
+  // whole team learns from this run. Skips near-duplicates so ranked retrieval
+  // stays signal-rich. Best-effort: never fails the response.
   const recordLearning = async (content: string) => {
     const learning = extractTeamLearning(content);
     if (!learning) return null;
     try {
+      const { data: recent } = await supabase
+        .from("agent_knowledge")
+        .select("insight")
+        .eq("owner_id", userData.user.id)
+        .order("created_at", { ascending: false })
+        .limit(40);
+      const existing = (recent ?? []).map((r: Record<string, string>) => r.insight ?? "");
+      if (isNearDuplicate(learning, existing)) return null;
       await supabase.from("agent_knowledge").insert({
         owner_id: userData.user.id,
         agent: job.agent,
