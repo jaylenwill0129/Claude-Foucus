@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scoreKnowledgeUsage, extractTeamLearning } from "../../../supabase/functions/_shared/knowledgeEval";
+import { scoreKnowledgeUsage, extractTeamLearning, rankKnowledge } from "../../../supabase/functions/_shared/knowledgeEval";
 
 describe("scoreKnowledgeUsage", () => {
   it("flags an output that references the collective knowledge", () => {
@@ -26,6 +26,30 @@ describe("scoreKnowledgeUsage", () => {
     const out = "mentions contractor only";
     expect(scoreKnowledgeUsage(out, ["contractor", "follow-up", "$29", "Austin"], 0.5).used).toBe(false);
     expect(scoreKnowledgeUsage(out, ["contractor", "follow-up"], 0.5).used).toBe(true);
+  });
+});
+
+describe("rankKnowledge", () => {
+  const rows = [
+    { topic: "creative trends", insight: "lofi beats are trending on TikTok this week", audience: "all" },
+    { topic: "contractor outreach", insight: "HVAC owners reply to slow follow-up framed as lost revenue", audience: "all" },
+    { topic: "finance", insight: "Stripe balance is zero; no charges yet", audience: "all" },
+  ];
+
+  it("ranks the most relevant learning first for a sales job", () => {
+    const ranked = rankKnowledge("draft outreach email for a contractor about follow-up", rows, 2);
+    expect(ranked[0].topic).toBe("contractor outreach");
+    expect(ranked.length).toBe(2);
+  });
+
+  it("surfaces creative knowledge for a creative job", () => {
+    const ranked = rankKnowledge("plan a trending lofi track for TikTok", rows, 1);
+    expect(ranked[0].topic).toBe("creative trends");
+  });
+
+  it("falls back to recency (input order) when nothing overlaps", () => {
+    const ranked = rankKnowledge("unrelated quantum logistics query", rows, 3);
+    expect(ranked.map((r) => r.topic)).toEqual(["creative trends", "contractor outreach", "finance"]);
   });
 });
 

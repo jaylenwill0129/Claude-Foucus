@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callHermes, HERMES_MODEL, hermesConfigured } from "../_shared/hermes.ts";
 import { PLAYBOOKS, playbookPrompt } from "../_shared/playbooks.ts";
-import { extractTeamLearning } from "../_shared/knowledgeEval.ts";
+import { extractTeamLearning, rankKnowledge } from "../_shared/knowledgeEval.ts";
 
 // Appended to every system prompt so each agent contributes a reusable insight
 // back to the shared learning bus (closing the learn-from-results loop).
@@ -29,11 +29,13 @@ const systemPromptFor = (agent: AgentJob["agent"]) => {
   return playbook ? `${BASE_PROMPT}\n\n${playbookPrompt(playbook)}` : BASE_PROMPT;
 };
 
-// Cross-agent learning: load the team's most recent shared knowledge so every
-// agent reasons with what its teammates (esp. Maya's research) have learned.
+// Cross-agent learning: pull a recent window of the team's shared knowledge and
+// rank it by relevance to THIS job (agent + objective) so every agent is fed the
+// most useful learnings — esp. Maya's research — rather than just the newest.
 const teamKnowledgeBlock = async (
   supabase: ReturnType<typeof createClient>,
   ownerId: string,
+  query: string,
 ): Promise<string> => {
   try {
     const { data } = await supabase
@@ -41,11 +43,12 @@ const teamKnowledgeBlock = async (
       .select("agent,audience,kind,topic,insight")
       .eq("owner_id", ownerId)
       .order("created_at", { ascending: false })
-      .limit(6);
+      .limit(24);
     const rows = (data ?? []) as Array<Record<string, string>>;
     if (!rows.length) return "";
-    return "\n\nCOLLECTIVE TEAM KNOWLEDGE (learn from your teammates; newest first):\n" +
-      rows.map((k, i) => `  ${i + 1}. [${k.agent} -> ${k.audience}] ${k.topic}: ${k.insight}`).join("\n");
+    const ranked = rankKnowledge(query, rows, 6);
+    return "\n\nCOLLECTIVE TEAM KNOWLEDGE (ranked by relevance to your task):\n" +
+      ranked.map((k, i) => `  ${i + 1}. [${k.agent} -> ${k.audience}] ${k.topic}: ${k.insight}`).join("\n");
   } catch {
     return "";
   }
@@ -92,7 +95,7 @@ Deno.serve(async (req) => {
   const job = (await req.json()) as AgentJob;
   if (!job.agent || !job.objective) return json({ error: "agent and objective are required" }, 400);
 
-  const teamKnowledge = await teamKnowledgeBlock(supabase, userData.user.id);
+  const teamKnowledge = await teamKnowledgeBlock(supabase, userData.user.id, `${job.agent} ${job.objective}`);
   const sysPrompt = systemPromptFor(job.agent) + teamKnowledge + LEARNING_INSTRUCTION;
 
   // Persist a reusable insight the agent surfaced back to the shared bus so the

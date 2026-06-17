@@ -29,6 +29,42 @@ export function scoreKnowledgeUsage(output: string, expectedTerms: string[], thr
   return { used: score >= threshold, score, hits, missed };
 }
 
+// A row on the shared knowledge bus (a subset of the agent_knowledge table).
+export type KnowledgeRow = {
+  agent?: string;
+  audience?: string;
+  kind?: string;
+  topic?: string;
+  insight?: string;
+};
+
+const STOPWORDS = new Set([
+  "the", "and", "for", "with", "our", "your", "you", "are", "from", "into",
+  "that", "this", "have", "has", "draft", "make", "best", "first", "fit",
+  "plan", "agent", "objective", "team", "all",
+]);
+
+const tokenize = (s: string): string[] =>
+  normalize(s).split(/\s+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+
+// Rank the team's shared knowledge by relevance to a job (its agent + objective)
+// instead of pure recency, so each agent is fed the most useful learnings as the
+// bus grows. Rows are assumed newest-first; stable sort keeps recency as the
+// tiebreak. A small boost for team-wide ("all") audience rows. Falls back to
+// recency when nothing overlaps, so an agent always has some context.
+export function rankKnowledge(query: string, rows: KnowledgeRow[], limit = 6): KnowledgeRow[] {
+  const q = new Set(tokenize(query));
+  const scored = rows.map((row, i) => {
+    const terms = tokenize(`${row.topic ?? ""} ${row.insight ?? ""}`);
+    let overlap = 0;
+    for (const t of terms) if (q.has(t)) overlap++;
+    const audienceBoost = row.audience === "all" ? 0.25 : 0;
+    return { row, i, score: overlap + audienceBoost };
+  });
+  scored.sort((a, b) => b.score - a.score || a.i - b.i);
+  return scored.slice(0, limit).map((s) => s.row);
+}
+
 // Extract the team learning an agent appends after the TEAM_LEARNING: marker so
 // the orchestrator can write it back to the shared bus (closing the loop).
 export function extractTeamLearning(output: string): string | null {
