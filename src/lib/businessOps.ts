@@ -478,6 +478,35 @@ export const startGoogleDriveConnect = async (): Promise<{ url: string } | { err
   }
 };
 
+// Ledger's treasury view: real Stripe balance + recent payouts so the operator
+// can see and withdraw money the agents earn. Read-only; withdrawing is done by
+// the operator in Stripe (never automated).
+export type Payout = { id: string; amountCents: number; currency: string; status: string; arrivalDate: number; method: string };
+export type Treasury = {
+  mode: "live" | "test";
+  currency: string;
+  availableCents: number;
+  pendingCents: number;
+  payouts: Payout[];
+  withdrawUrl: string;
+  note: string;
+};
+
+export const loadTreasury = async (): Promise<Treasury | { error: string }> => {
+  const endpoint = functionUrl("stripe-balance");
+  if (!endpoint) return { error: "Supabase URL not configured." };
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session) return { error: "Sign in to view the treasury." };
+  try {
+    const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) } });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: body?.error ?? `Treasury returned HTTP ${res.status}.` };
+    return body as Treasury;
+  } catch {
+    return { error: "Could not reach the treasury." };
+  }
+};
+
 export type KnowledgeEntry = {
   id: string;
   agent: string;

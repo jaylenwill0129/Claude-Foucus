@@ -7,12 +7,13 @@ import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
   loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects, loadAgentKnowledge,
-  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect,
+  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect, loadTreasury,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
-  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type KnowledgeEntry, type DomainCheck,
+  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type KnowledgeEntry, type DomainCheck, type Treasury,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
+import { benchmarkFor } from "@/lib/agentBenchmarks";
 import { probeOperatorRelay, relayToOperator, type RelayStatus } from "@/lib/operatorRelay";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -244,6 +245,7 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
   history: HermesHistoryEntry[]; onRelayBrief: () => void; onClose: () => void; authed: boolean;
 }) {
   const playbook = agentPlaybooks[place.id];
+  const benchmark = benchmarkFor(place.id);
   const route = brief.agentRoutes.find((r) => r.agent.toLowerCase() === place.name.toLowerCase());
   const Icon = place.icon;
   return (
@@ -276,9 +278,19 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
         </div>
       )}
 
+      {benchmark && (
+        <div className="mt-5 rounded-xl border border-[#dff54a]/20 bg-[#dff54a]/[0.04] p-3">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-[#dff54a]/80">Emulating the top performers · {benchmark.field}</p>
+          <ul className="mt-2 space-y-1">
+            {benchmark.top.map((t, i) => <li key={i} className="text-[10px] leading-relaxed text-slate-300">• {t}</li>)}
+          </ul>
+          <p className="mt-2 text-[9px] text-slate-500">Metrics to beat: {benchmark.beat}</p>
+        </div>
+      )}
       {place.id === "creative" && <CreativePanel authed={authed} />}
       {place.id === "commerce" && <DomainPanel />}
       {place.id === "delivery" && <DrivePanel authed={authed} />}
+      {place.id === "finance" && <TreasuryPanel authed={authed} />}
       {place.id === "research" && <ProspectsPanel authed={authed} />}
       {place.connector && <JobsPanel agentName={place.name} authed={authed} />}
       {place.id === "hermes" && (
@@ -316,6 +328,51 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
         </div>
       )}
     </aside>
+  );
+}
+
+function TreasuryPanel({ authed }: { authed: boolean }) {
+  const [t, setT] = useState<Treasury | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    if (!authed) return;
+    loadTreasury().then((r) => { if ("error" in r) setErr(r.error); else setT(r); });
+  }, [authed]);
+  const usd = (c: number) => `$${(c / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return (
+    <div className="mt-5">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Treasury · your money</p>
+      {!authed && <p className="mt-2 text-[10px] text-slate-500">Sign in to view the balance.</p>}
+      {err && <p className="mt-2 text-[10px] text-amber-300/80">{err}</p>}
+      {t && (
+        <>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-2.5">
+              <p className="text-[9px] uppercase tracking-wider text-slate-500">Available</p>
+              <p className="text-lg font-bold text-emerald-300">{usd(t.availableCents)}</p>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-2.5">
+              <p className="text-[9px] uppercase tracking-wider text-slate-500">Pending</p>
+              <p className="text-lg font-bold text-slate-200">{usd(t.pendingCents)}</p>
+            </div>
+          </div>
+          <p className="mt-1 text-[9px] text-slate-500">{t.mode === "test" ? "Sandbox" : "Live"} · {t.note}</p>
+          {t.payouts.length > 0 && (
+            <div className="mt-2 space-y-1">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Recent payouts</p>
+              {t.payouts.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-2 py-1.5">
+                  <span className="text-[10px] text-slate-300">{usd(p.amountCents)}</span>
+                  <span className="text-[8px] uppercase tracking-wider text-slate-500">{p.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <a href={t.withdrawUrl} target="_blank" rel="noopener noreferrer" className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-2 text-[10px] font-bold text-[#0a0e14]"><WalletCards size={12} />Withdraw to bank (Stripe)</a>
+          <p className="mt-1.5 text-[9px] text-slate-500">Withdrawals happen in your Stripe dashboard — the agents never move your money.</p>
+        </>
+      )}
+    </div>
   );
 }
 

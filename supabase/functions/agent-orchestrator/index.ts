@@ -2,11 +2,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callHermes, HERMES_MODEL, hermesConfigured } from "../_shared/hermes.ts";
 import { PLAYBOOKS, playbookPrompt } from "../_shared/playbooks.ts";
 import { extractTeamLearning, isNearDuplicate, rankKnowledge } from "../_shared/knowledgeEval.ts";
+import { benchmarkPrompt } from "../_shared/benchmarks.ts";
 
 // Appended to every system prompt so each agent contributes a reusable insight
-// back to the shared learning bus (closing the learn-from-results loop).
+// back to the shared learning bus (closing the learn-from-results loop). Framed
+// around proficiency: what made this better than the baseline / benchmark.
 const LEARNING_INSTRUCTION =
-  "\n\nAfter your plan, end with one line exactly: TEAM_LEARNING: <one concise, reusable insight for your teammates>.";
+  "\n\nAfter your plan, end with one line exactly: TEAM_LEARNING: <the single most reusable tactic that beat the benchmark, so teammates can replicate it>.";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -96,7 +98,7 @@ Deno.serve(async (req) => {
   if (!job.agent || !job.objective) return json({ error: "agent and objective are required" }, 400);
 
   const teamKnowledge = await teamKnowledgeBlock(supabase, userData.user.id, `${job.agent} ${job.objective}`);
-  const sysPrompt = systemPromptFor(job.agent) + teamKnowledge + LEARNING_INSTRUCTION;
+  const sysPrompt = systemPromptFor(job.agent) + benchmarkPrompt(job.agent) + teamKnowledge + LEARNING_INSTRUCTION;
 
   // Persist a reusable insight the agent surfaced back to the shared bus so the
   // whole team learns from this run. Skips near-duplicates so ranked retrieval
