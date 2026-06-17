@@ -22,6 +22,16 @@ const config = () => ({
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Public health probe (no auth): report whether the Google provider credentials
+  // are wired, so the world's connector dashboard can show fulfillment readiness
+  // without a session. Per-user Drive connection (OAuth) is reported on the authed
+  // GET below as `connected`.
+  if (req.method === "GET" && !req.headers.get("Authorization")) {
+    const s = config();
+    return json({ connector: "google_drive", configured: Boolean(s.clientId && s.clientSecret && s.redirectUri), connected: false, note: "Sign in to check your Drive connection." });
+  }
+
   const settings = config();
   if (!settings.clientId || !settings.clientSecret || !settings.redirectUri || !settings.supabaseUrl || !settings.supabaseSecret) {
     return json({ error: "Google Drive OAuth is not fully configured" }, 503);

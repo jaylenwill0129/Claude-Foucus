@@ -121,15 +121,28 @@ const fetchApolloProspects = async (apolloKey: string, payload: Record<string, u
   return { prospects: people.map(normalizeApolloPerson).slice(0, limit), status: 200 };
 };
 
+// HubSpot as CRM of record: dedupe by domain (search -> update or create) so
+// repeated syncs don't pile up duplicate companies. Tags the company as a lead
+// and records the prospect problem evidence. Best-effort; returns the company id.
+const HS = (token: string) => ({ Authorization: `Bearer ${token}`, "Content-Type": "application/json" });
 const upsertHubSpot = async (token: string, prospect: Prospect) => {
   const websiteUrl = prospect.website?.startsWith("http") ? prospect.website : prospect.website ? `https://${prospect.website}` : undefined;
   const domain = websiteUrl ? safeHost(websiteUrl) : undefined;
-  const company = await fetch("https://api.hubapi.com/crm/v3/objects/companies", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ properties: { name: prospect.businessName ?? "Unknown business", domain, phone: prospect.phone } }),
-  });
-  return await company.json().catch(() => ({}));
+  const properties = { name: prospect.businessName ?? "Unknown business", domain, phone: prospect.phone, lifecyclestage: "lead", description: prospect.problemEvidence };
+  try {
+    let existingId: string | null = null;
+    if (domain) {
+      const search = await fetch("https://api.hubapi.com/crm/v3/objects/companies/search", { method: "POST", headers: HS(token), body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "domain", operator: "EQ", value: domain }] }], properties: ["domain"], limit: 1 }) });
+      const sr = await search.json().catch(() => ({}));
+      existingId = sr?.results?.[0]?.id ?? null;
+    }
+    const url = existingId ? `https://api.hubapi.com/crm/v3/objects/companies/${existingId}` : "https://api.hubapi.com/crm/v3/objects/companies";
+    const res = await fetch(url, { method: existingId ? "PATCH" : "POST", headers: HS(token), body: JSON.stringify({ properties }) });
+    const out = await res.json().catch(() => ({}));
+    return { id: out?.id ?? existingId ?? null, updated: Boolean(existingId), ok: res.ok };
+  } catch {
+    return { id: null, updated: false, ok: false };
+  }
 };
 
 Deno.serve(async (req) => {
@@ -184,7 +197,7 @@ Deno.serve(async (req) => {
   const receipts = [];
   for (const prospect of prospects.slice(0, 15)) {
     if (!prospect.businessName) continue;
-    const hubspotReceipt = settings.hubspotToken ? await upsertHubSpot(settings.hubspotToken, prospect) : null;
+    const hubspot = settings.hubspotToken ? await upsertHubSpot(settings.hubspotToken, prospect) : null;
     await supabase.from("agent_prospects").upsert({
       owner_id: ownerId,
       business_name: prospect.businessName,
@@ -197,7 +210,7 @@ Deno.serve(async (req) => {
       source_record_id: prospect.sourceRecordId ?? crypto.randomUUID(),
       updated_at: new Date().toISOString(),
     }, { onConflict: "owner_id,source,source_record_id" });
-    receipts.push({ prospect: prospect.businessName, website: prospect.website ?? null, hubspot: Boolean(hubspotReceipt) });
+    receipts.push({ prospect: prospect.businessName, website: prospect.website ?? null, hubspot: hubspot?.ok ? (hubspot.updated ? "updated" : "created") : (settings.hubspotToken ? "failed" : "skipped"), hubspotId: hubspot?.id ?? null });
   }
 
   // Maya broadcasts a research digest to the shared learning bus so Marcus,
@@ -215,5 +228,5 @@ Deno.serve(async (req) => {
     });
   }
 
-  return json({ accepted: true, source: sourceUsed, sourceNote, synced: receipts.length, receipts });
+  return json({ accepted: true, source: sourceUsed, sourceNote, synced: receipts.length, crmOfRecord: settings.hubspotToken ? "hubspot" : "supabase_only", receipts });
 });
