@@ -448,6 +448,36 @@ export const findBrandDomains = async (seed: string): Promise<DomainCheck | { er
   }
 };
 
+// Dev's Google Drive fulfillment connection. GET reports provider + per-user
+// state; POST returns a Google consent URL for the operator to authorize (the
+// OAuth grant is the operator's own click, never automated).
+export const loadGoogleDriveStatus = async (): Promise<{ configured: boolean; connected: boolean }> => {
+  const endpoint = functionUrl("google-drive-oauth");
+  if (!endpoint) return { configured: false, connected: false };
+  try {
+    const res = await fetch(endpoint, { headers: await authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    return { configured: Boolean(body.configured), connected: Boolean(body.connected) };
+  } catch {
+    return { configured: false, connected: false };
+  }
+};
+
+export const startGoogleDriveConnect = async (): Promise<{ url: string } | { error: string }> => {
+  const endpoint = functionUrl("google-drive-oauth");
+  if (!endpoint) return { error: "Supabase URL not configured." };
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session) return { error: "Sign in first to connect Drive." };
+  try {
+    const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) } });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.authorizationUrl) return { error: body?.error ?? `Connector returned HTTP ${res.status}.` };
+    return { url: body.authorizationUrl as string };
+  } catch {
+    return { error: "Could not reach the Drive connector." };
+  }
+};
+
 export type KnowledgeEntry = {
   id: string;
   agent: string;

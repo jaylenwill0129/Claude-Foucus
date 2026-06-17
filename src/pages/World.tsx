@@ -7,7 +7,7 @@ import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
   loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects, loadAgentKnowledge,
-  findBrandDomains,
+  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
   type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type KnowledgeEntry, type DomainCheck,
 } from "@/lib/businessOps";
@@ -278,6 +278,7 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
 
       {place.id === "creative" && <CreativePanel authed={authed} />}
       {place.id === "commerce" && <DomainPanel />}
+      {place.id === "delivery" && <DrivePanel authed={authed} />}
       {place.id === "research" && <ProspectsPanel authed={authed} />}
       {place.connector && <JobsPanel agentName={place.name} authed={authed} />}
       {place.id === "hermes" && (
@@ -315,6 +316,38 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
         </div>
       )}
     </aside>
+  );
+}
+
+function DrivePanel({ authed }: { authed: boolean }) {
+  const [status, setStatus] = useState<{ configured: boolean; connected: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  useEffect(() => { if (authed) loadGoogleDriveStatus().then(setStatus); }, [authed]);
+  const connect = async () => {
+    setBusy(true); setMsg("");
+    const r = await startGoogleDriveConnect();
+    if ("error" in r) { setMsg(r.error); setBusy(false); return; }
+    setMsg("Opening Google consent — approve there, then return.");
+    window.open(r.url, "_blank", "noopener,noreferrer");
+    setBusy(false);
+  };
+  return (
+    <div className="mt-5">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Google Drive fulfillment</p>
+      <p className="mt-1 text-[9px] text-slate-500">Where approved deliverables and fulfillment evidence are stored.</p>
+      {!authed && <p className="mt-2 text-[10px] text-slate-500">Sign in to connect Drive.</p>}
+      {authed && (
+        <>
+          <div className="mt-2 flex items-center gap-2 text-[10px]">
+            <span className={`h-2 w-2 rounded-full ${status?.connected ? "bg-emerald-400" : status?.configured ? "bg-amber-400" : "bg-slate-600"}`} />
+            <span className="text-slate-300">{status?.connected ? "Drive connected" : status?.configured ? "Provider ready — your Drive isn't linked yet" : "Provider not configured"}</span>
+          </div>
+          <button onClick={connect} disabled={busy || !status?.configured} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40">{busy ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}{status?.connected ? "Reconnect Google Drive" : "Connect Google Drive"}</button>
+          {msg && <p className="mt-2 text-[10px] text-slate-400">{msg}</p>}
+        </>
+      )}
+    </div>
   );
 }
 
