@@ -200,5 +200,20 @@ Deno.serve(async (req) => {
     receipts.push({ prospect: prospect.businessName, website: prospect.website ?? null, hubspot: Boolean(hubspotReceipt) });
   }
 
+  // Maya broadcasts a research digest to the shared learning bus so Marcus,
+  // Lena, and Ledger can consume the data efficiently.
+  if (receipts.length) {
+    await supabase.from("agent_knowledge").insert({
+      owner_id: ownerId,
+      agent: "Maya",
+      audience: "all",
+      kind: "research_digest",
+      topic: `${sourceUsed} prospect run`,
+      insight: `Synced ${receipts.length} qualified prospects via ${sourceUsed}. Marcus: use these for outreach drafts. Lena: shape an offer around their shared pain. Ledger: model pricing and refund risk.`,
+      data: { source: sourceUsed, count: receipts.length, businesses: receipts.map((r) => r.prospect).slice(0, 15) },
+      confidence: 0.6,
+    });
+  }
+
   return json({ accepted: true, source: sourceUsed, sourceNote, synced: receipts.length, receipts });
 });

@@ -23,6 +23,28 @@ const systemPromptFor = (agent: AgentJob["agent"]) => {
   return playbook ? `${BASE_PROMPT}\n\n${playbookPrompt(playbook)}` : BASE_PROMPT;
 };
 
+// Cross-agent learning: load the team's most recent shared knowledge so every
+// agent reasons with what its teammates (esp. Maya's research) have learned.
+const teamKnowledgeBlock = async (
+  supabase: ReturnType<typeof createClient>,
+  ownerId: string,
+): Promise<string> => {
+  try {
+    const { data } = await supabase
+      .from("agent_knowledge")
+      .select("agent,audience,kind,topic,insight")
+      .eq("owner_id", ownerId)
+      .order("created_at", { ascending: false })
+      .limit(6);
+    const rows = (data ?? []) as Array<Record<string, string>>;
+    if (!rows.length) return "";
+    return "\n\nCOLLECTIVE TEAM KNOWLEDGE (learn from your teammates; newest first):\n" +
+      rows.map((k, i) => `  ${i + 1}. [${k.agent} -> ${k.audience}] ${k.topic}: ${k.insight}`).join("\n");
+  } catch {
+    return "";
+  }
+};
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -64,12 +86,14 @@ Deno.serve(async (req) => {
   const job = (await req.json()) as AgentJob;
   if (!job.agent || !job.objective) return json({ error: "agent and objective are required" }, 400);
 
+  const sysPrompt = systemPromptFor(job.agent) + (await teamKnowledgeBlock(supabase, userData.user.id));
+
   // Hermes path (Nous Research).
   if (useHermes) {
     try {
       const hermes = await callHermes({
         messages: [
-          { role: "system", content: systemPromptFor(job.agent) },
+          { role: "system", content: sysPrompt },
           { role: "user", content: JSON.stringify(job) },
         ],
         temperature: 0.3,

@@ -426,6 +426,40 @@ export const loadProspects = async (limit = 25): Promise<ProspectRecord[]> => {
   }));
 };
 
+export type KnowledgeEntry = {
+  id: string;
+  agent: string;
+  audience: string;
+  kind: string;
+  topic: string;
+  insight: string;
+  confidence: number;
+  createdAt: string;
+};
+
+// The shared learning bus: what the agents have learned and broadcast to each
+// other (Maya's research digests, outcomes, signals). RLS-scoped to the operator.
+export const loadAgentKnowledge = async (limit = 12): Promise<KnowledgeEntry[]> => {
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session?.user) return [];
+  const { data, error } = await supabase
+    .from("agent_knowledge" as never)
+    .select("id,agent,audience,kind,topic,insight,confidence,created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as unknown as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row.id),
+    agent: String(row.agent ?? ""),
+    audience: String(row.audience ?? "all"),
+    kind: String(row.kind ?? "insight"),
+    topic: String(row.topic ?? ""),
+    insight: String(row.insight ?? ""),
+    confidence: Number(row.confidence ?? 0),
+    createdAt: String(row.created_at ?? ""),
+  }));
+};
+
 export type SystemHealth = { id: string; name: string; ok: boolean; detail: string };
 
 // Probe the core (no-JWT) edge functions' GET health so the world can show which

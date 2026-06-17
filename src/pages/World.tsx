@@ -6,9 +6,9 @@ import {
 import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
-  loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects,
+  loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects, loadAgentKnowledge,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
-  type SystemHealth, type HermesHistoryEntry, type ProspectRecord,
+  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type KnowledgeEntry,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
@@ -52,6 +52,7 @@ export default function World() {
   const [relayMsg, setRelayMsg] = useState("");
   const [systems, setSystems] = useState<SystemHealth[]>([]);
   const [history, setHistory] = useState<HermesHistoryEntry[]>([]);
+  const [knowledge, setKnowledge] = useState<KnowledgeEntry[]>([]);
 
   const connectorMap = useMemo(() => Object.fromEntries(connectors.map((c) => [c.id, c])), [connectors]);
   const relay = openclawStatus();
@@ -74,6 +75,7 @@ export default function World() {
     setHermes(intel); setThinking(false);
     setSystems(await loadSystemsHealth());
     setHistory(await loadHermesHistory());
+    setKnowledge(await loadAgentKnowledge());
   }, []);
 
   useEffect(() => {
@@ -176,6 +178,28 @@ export default function World() {
               </div>
             ))}
             {systems.length === 0 && <span className="text-[10px] text-slate-500">Probing…</span>}
+          </div>
+        </div>
+
+        {/* collective learning bus */}
+        <div className="absolute bottom-4 right-4 w-[300px] rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Collective memory</p>
+            <p className="text-[9px] font-bold text-slate-400">{knowledge.length} shared</p>
+          </div>
+          <p className="mt-1 text-[9px] text-slate-500">What agents have learned and broadcast to each other.</p>
+          <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto">
+            {knowledge.length === 0 && <span className="text-[10px] text-slate-500">No shared learnings yet.</span>}
+            {knowledge.map((k) => (
+              <div key={k.id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold text-emerald-300">{k.agent} → {k.audience}</span>
+                  <span className="text-[8px] uppercase tracking-wider text-slate-500">{k.kind.replaceAll("_", " ")}</span>
+                </div>
+                <p className="mt-0.5 text-[10px] font-semibold text-slate-200">{k.topic}</p>
+                <p className="mt-0.5 text-[9px] leading-relaxed text-slate-400">{k.insight}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
