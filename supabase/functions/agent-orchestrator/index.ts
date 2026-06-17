@@ -1,6 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callHermes, HERMES_MODEL, hermesConfigured } from "../_shared/hermes.ts";
 import { PLAYBOOKS, playbookPrompt } from "../_shared/playbooks.ts";
+import { extractTeamLearning } from "../_shared/knowledgeEval.ts";
+
+// Appended to every system prompt so each agent contributes a reusable insight
+// back to the shared learning bus (closing the learn-from-results loop).
+const LEARNING_INSTRUCTION =
+  "\n\nAfter your plan, end with one line exactly: TEAM_LEARNING: <one concise, reusable insight for your teammates>.";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,7 +92,28 @@ Deno.serve(async (req) => {
   const job = (await req.json()) as AgentJob;
   if (!job.agent || !job.objective) return json({ error: "agent and objective are required" }, 400);
 
-  const sysPrompt = systemPromptFor(job.agent) + (await teamKnowledgeBlock(supabase, userData.user.id));
+  const teamKnowledge = await teamKnowledgeBlock(supabase, userData.user.id);
+  const sysPrompt = systemPromptFor(job.agent) + teamKnowledge + LEARNING_INSTRUCTION;
+
+  // Persist a reusable insight the agent surfaced back to the shared bus so the
+  // whole team learns from this run. Best-effort: never fails the response.
+  const recordLearning = async (content: string) => {
+    const learning = extractTeamLearning(content);
+    if (!learning) return null;
+    try {
+      await supabase.from("agent_knowledge").insert({
+        owner_id: userData.user.id,
+        agent: job.agent,
+        audience: "all",
+        kind: "outcome",
+        topic: job.objective.slice(0, 80),
+        insight: learning,
+        data: {},
+        confidence: 0.5,
+      });
+    } catch { /* non-fatal */ }
+    return learning;
+  };
 
   // Hermes path (Nous Research).
   if (useHermes) {
@@ -99,10 +126,13 @@ Deno.serve(async (req) => {
         temperature: 0.3,
         maxTokens: 900,
       });
+      const learned = await recordLearning(hermes.content);
       return json({
         accepted: true,
         agent: job.agent,
         brain: hermes.model,
+        knowledgeUsed: Boolean(teamKnowledge),
+        learned,
         result: { content: hermes.content, usage: { promptTokens: hermes.promptTokens, completionTokens: hermes.completionTokens } },
         executionPolicy: "prepare_only_until_operator_approval",
       });
@@ -122,7 +152,7 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       model: Deno.env.get("OPENAI_AGENT_MODEL") ?? "gpt-5-mini",
       input: [
-        { role: "system", content: systemPromptFor(job.agent) },
+        { role: "system", content: sysPrompt },
         { role: "user", content: JSON.stringify(job) },
       ],
     }),
@@ -131,10 +161,17 @@ Deno.serve(async (req) => {
   const result = await response.json();
   if (!response.ok) return json({ error: "OpenAI request failed", provider: result }, response.status);
 
+  const openAiText = typeof result?.output_text === "string"
+    ? result.output_text
+    : JSON.stringify(result?.output ?? "");
+  const learned = await recordLearning(openAiText);
+
   return json({
     accepted: true,
     agent: job.agent,
     brain: "openai",
+    knowledgeUsed: Boolean(teamKnowledge),
+    learned,
     result,
     executionPolicy: "prepare_only_until_operator_approval",
   });
