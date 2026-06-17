@@ -14,7 +14,7 @@ const corsHeaders = {
 };
 
 type AgentJob = {
-  agent: "research" | "sales" | "product" | "delivery" | "finance" | "creative";
+  agent: "research" | "sales" | "product" | "delivery" | "finance" | "creative" | "commerce";
   objective: string;
   context?: Record<string, unknown>;
 };

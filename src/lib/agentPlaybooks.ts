@@ -58,4 +58,16 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
     cadence: "Proactive: initiates every 4 hours while armed, not on a per-task command.",
     guardrails: ["Respect LinkedIn/email ToS and rate limits.", "External sends require approval + receipt.", "Never fabricate lead data."],
   },
+  commerce: {
+    loop: [
+      { phase: "Niche & product research", action: "Hunt micro-niches in high-profit categories; target the $10-30 sweet spot; surface 3-5 weekly test candidates before saturation.", autonomy: "autonomous" },
+      { phase: "Supplier & fulfillment vetting", action: "Prefer US/EU warehouses for 3-5 day delivery; honor TikTok Shop's ~3-day US rule; require QC for sub-6% refunds.", autonomy: "autonomous" },
+      { phase: "Brand & positioning", action: "Private label + custom packaging + unboxing inserts for higher margin and repeat purchases; professional copy.", autonomy: "autonomous" },
+      { phase: "Listing + ad creative", action: "Draft the unpublished Shopify listing priced for net margin; produce hook-first TikTok/Reels video concepts; plan multi-channel mix.", autonomy: "autonomous" },
+      { phase: "Automation + KPI dashboard", action: "Spec AutoDS-style fulfillment + 24/7 stock monitoring + support bot; model SKU-level CAC/LTV/net margin with cut/scale thresholds.", autonomy: "autonomous" },
+      { phase: "Publish / spend / charge", action: "Publish listing, launch paid ads, place supplier orders, charge customers — all held for operator approval, never autonomous.", autonomy: "approval_gated" },
+    ],
+    cadence: "Continuous research with a weekly 3-5 product test batch; publishing and spend are deliberate gated steps.",
+    guardrails: ["No publish, ad spend, supplier order, or charge without approval + receipt; never enter payment credentials.", "Honor TikTok Shop US/3-day fulfillment; true shipping times; QC for sub-6% refunds.", "Respect Shopify/TikTok/Meta ToS; no counterfeit/restricted products; evidence-only metrics."],
+  },
 };

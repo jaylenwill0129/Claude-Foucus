@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BrainCircuit, Music2, Search, Mail, ShoppingBag, PackageCheck, WalletCards,
-  RadioTower, RefreshCw, Power, LogIn, X, Check, Sparkles, Send, MapPin,
+  RadioTower, RefreshCw, Power, LogIn, X, Check, Sparkles, Send, MapPin, Store,
 } from "lucide-react";
 import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
@@ -34,7 +34,8 @@ const PLACES: Place[] = [
   { id: "creative", name: "Aria", place: "Signal Studio", role: "Creative Director & DJ", objective: "Turn live trends into approval-ready release packages.", icon: Music2, kind: "agent", x: 25, y: 19 },
   { id: "research", name: "Maya", place: "Prospect Observatory", role: "Research", objective: "Find businesses with an expensive, measurable problem.", icon: Search, connector: "crm", kind: "agent", x: 50, y: 12 },
   { id: "sales", name: "Marcus", place: "Outbound Office", role: "Sales", objective: "Turn qualified prospects into booked calls and offers.", icon: Mail, connector: "outreach", kind: "agent", x: 76, y: 20 },
-  { id: "product", name: "Lena", place: "Storefront Studio", role: "Product", objective: "Create and publish offers people can buy now.", icon: ShoppingBag, connector: "storefront", kind: "agent", x: 87, y: 53 },
+  { id: "product", name: "Lena", place: "Storefront Studio", role: "Product", objective: "Create and publish offers people can buy now.", icon: ShoppingBag, connector: "storefront", kind: "agent", x: 88, y: 40 },
+  { id: "commerce", name: "Cyrus", place: "Commerce Floor", role: "Dropshipping Commerce", objective: "Build a branded dropshipping winner with fast fulfillment and unit economics that work.", icon: Store, connector: "storefront", kind: "agent", x: 90, y: 66 },
   { id: "delivery", name: "Dev", place: "Delivery Workshop", role: "Fulfillment", objective: "Complete paid work and preserve margin.", icon: PackageCheck, connector: "fulfillment", kind: "agent", x: 71, y: 84 },
   { id: "finance", name: "Ledger", place: "Revenue Vault", role: "Finance", objective: "Reconcile every dollar; reject unverified revenue.", icon: WalletCards, connector: "payments", kind: "agent", x: 30, y: 84 },
   { id: "openclaw", name: "OpenClaw", place: "Comms Relay", role: "Operator channel", objective: "Carry Hermes's briefs to the operator and commands back.", icon: RadioTower, kind: "relay", x: 13, y: 51 },
