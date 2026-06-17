@@ -96,6 +96,23 @@ export const BENCHMARKS: Record<string, Benchmark> = {
 const DIRECTIVE =
   "Study these top-performer patterns AND the collective team knowledge below. Replicate what the best do, then improve on it for this specific task. State which pattern you are applying and the metric you intend to beat. Prefer proven patterns over guesses.";
 
+// The signal terms an output should contain when it genuinely applies the
+// agent's benchmark. Used by the proficiency eval to detect whether "study the
+// top performers" actually shows up in the work (regression guard).
+export const BENCHMARK_SIGNALS: Record<string, string[]> = {
+  sales: ["signal", "follow-up", "reply"],
+  creative: ["hook", "retention", "trend"],
+  product: ["conversion", "niche", "proof"],
+  commerce: ["margin", "winner", "fulfillment"],
+  research: ["trigger", "icp", "verify"],
+  finance: ["receipt", "margin", "reconcile"],
+  delivery: ["sla", "qc", "evidence"],
+};
+
+export function benchmarkSignals(agentKey: string): string[] {
+  return BENCHMARK_SIGNALS[agentKey] ?? [];
+}
+
 // Render the benchmark for an agent as compact prompt context.
 export function benchmarkPrompt(agentKey: string): string {
   const b = BENCHMARKS[agentKey];
