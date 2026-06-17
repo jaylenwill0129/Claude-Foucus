@@ -7,8 +7,9 @@ import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
   loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects, loadAgentKnowledge,
+  findBrandDomains,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
-  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type KnowledgeEntry,
+  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type KnowledgeEntry, type DomainCheck,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
@@ -276,6 +277,7 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
       )}
 
       {place.id === "creative" && <CreativePanel authed={authed} />}
+      {place.id === "commerce" && <DomainPanel />}
       {place.id === "research" && <ProspectsPanel authed={authed} />}
       {place.connector && <JobsPanel agentName={place.name} authed={authed} />}
       {place.id === "hermes" && (
@@ -313,6 +315,46 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
         </div>
       )}
     </aside>
+  );
+}
+
+function DomainPanel() {
+  const [seed, setSeed] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<DomainCheck | null>(null);
+  const [err, setErr] = useState("");
+  const run = async () => {
+    if (!seed.trim()) return;
+    setLoading(true); setErr(""); setResult(null);
+    const r = await findBrandDomains(seed.trim());
+    if ("error" in r) setErr(r.error); else setResult(r);
+    setLoading(false);
+  };
+  const tone = (s: string) => s === "available" ? "text-emerald-300" : s === "taken" ? "text-rose-300" : "text-slate-500";
+  return (
+    <div className="mt-5">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Brand domain finder</p>
+      <p className="mt-1 text-[9px] text-slate-500">Real RDAP availability for a brand seed — pick the .com before you build the store.</p>
+      <div className="mt-2 flex gap-2">
+        <input value={seed} onChange={(e) => setSeed(e.target.value)} onKeyDown={(e) => e.key === "Enter" && run()} placeholder="e.g. pawsomegroom" className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900/60 px-2.5 py-1.5 text-[11px] text-slate-100 placeholder:text-slate-600 focus:border-[#dff54a]/50 focus:outline-none" />
+        <button onClick={run} disabled={loading || !seed.trim()} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-1.5 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40">{loading ? <RefreshCw size={11} className="animate-spin" /> : <Search size={11} />}{loading ? "Checking" : "Check"}</button>
+      </div>
+      {err && <p className="mt-2 text-[10px] text-rose-300/80">{err}</p>}
+      {result && (
+        <div className="mt-3">
+          {result.recommendation && <p className="mb-2 text-[10px] text-slate-300">Recommended: <span className="font-bold text-emerald-300">{result.recommendation}</span></p>}
+          <div className="space-y-1">
+            {result.results.map((r) => (
+              <div key={r.domain} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-2.5 py-1.5">
+                <span className="font-mono text-[11px] text-slate-200">{r.domain}</span>
+                <span className={`text-[9px] font-bold uppercase tracking-wider ${tone(r.status)}`}>{r.status}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[9px] text-slate-500">Registering a domain is operator-gated — these are read-only lookups.</p>
+        </div>
+      )}
+    </div>
   );
 }
 

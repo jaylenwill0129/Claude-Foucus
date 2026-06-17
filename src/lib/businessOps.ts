@@ -426,6 +426,28 @@ export const loadProspects = async (limit = 25): Promise<ProspectRecord[]> => {
   }));
 };
 
+// Cyrus's brand-domain finder. Calls the public RDAP-backed domain-check
+// function (no auth, no secret) and returns availability for a brand seed.
+export type DomainResult = { domain: string; status: "available" | "taken" | "unknown" };
+export type DomainCheck = { seed: string; results: DomainResult[]; available: string[]; recommendation: string | null };
+
+export const findBrandDomains = async (seed: string): Promise<DomainCheck | { error: string }> => {
+  const endpoint = functionUrl("domain-check");
+  if (!endpoint) return { error: "Supabase URL not configured." };
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seed }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: body?.error ?? `Domain check returned HTTP ${res.status}.` };
+    return body as DomainCheck;
+  } catch {
+    return { error: "Could not reach the domain finder." };
+  }
+};
+
 export type KnowledgeEntry = {
   id: string;
   agent: string;

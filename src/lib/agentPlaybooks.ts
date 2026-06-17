@@ -62,7 +62,7 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
     loop: [
       { phase: "Niche & product research", action: "Hunt micro-niches in high-profit categories; target the $10-30 sweet spot; surface 3-5 weekly test candidates before saturation.", autonomy: "autonomous" },
       { phase: "Supplier & fulfillment vetting", action: "Prefer US/EU warehouses for 3-5 day delivery; honor TikTok Shop's ~3-day US rule; require QC for sub-6% refunds.", autonomy: "autonomous" },
-      { phase: "Brand & positioning", action: "Private label + custom packaging + unboxing inserts for higher margin and repeat purchases; professional copy.", autonomy: "autonomous" },
+      { phase: "Brand & positioning", action: "Private label + custom packaging + unboxing inserts; check brandable domain availability (prefer .com) before naming; professional copy.", autonomy: "autonomous" },
       { phase: "Listing + ad creative", action: "Draft the unpublished Shopify listing priced for net margin; produce hook-first TikTok/Reels video concepts; plan multi-channel mix.", autonomy: "autonomous" },
       { phase: "Automation + KPI dashboard", action: "Spec AutoDS-style fulfillment + 24/7 stock monitoring + support bot; model SKU-level CAC/LTV/net margin with cut/scale thresholds.", autonomy: "autonomous" },
       { phase: "Publish / spend / charge", action: "Publish listing, launch paid ads, place supplier orders, charge customers — all held for operator approval, never autonomous.", autonomy: "approval_gated" },
