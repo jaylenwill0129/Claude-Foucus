@@ -12,7 +12,7 @@ import {
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
-import { openclawStatus, relayToOpenclaw } from "@/lib/openclaw";
+import { openclawStatus, probeOpenclaw, relayToOpenclaw } from "@/lib/openclaw";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 
@@ -53,9 +53,9 @@ export default function World() {
   const [systems, setSystems] = useState<SystemHealth[]>([]);
   const [history, setHistory] = useState<HermesHistoryEntry[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeEntry[]>([]);
+  const [relay, setRelay] = useState(openclawStatus());
 
   const connectorMap = useMemo(() => Object.fromEntries(connectors.map((c) => [c.id, c])), [connectors]);
-  const relay = openclawStatus();
   const fallback = useMemo(() => computeFallbackBrief(connectors, revenue, automation), [connectors, revenue, automation]);
   const brief = hermes?.brief ?? fallback;
   const hermesLive = hermes?.source === "hermes-4";
@@ -76,6 +76,7 @@ export default function World() {
     setSystems(await loadSystemsHealth());
     setHistory(await loadHermesHistory());
     setKnowledge(await loadAgentKnowledge());
+    setRelay(await probeOpenclaw());
   }, []);
 
   useEffect(() => {
@@ -190,16 +191,19 @@ export default function World() {
           <p className="mt-1 text-[9px] text-slate-500">What agents have learned and broadcast to each other.</p>
           <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto">
             {knowledge.length === 0 && <span className="text-[10px] text-slate-500">No shared learnings yet.</span>}
-            {knowledge.map((k) => (
-              <div key={k.id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold text-emerald-300">{k.agent} → {k.audience}</span>
-                  <span className="text-[8px] uppercase tracking-wider text-slate-500">{k.kind.replaceAll("_", " ")}</span>
+            {knowledge.map((k) => {
+              const learned = k.kind === "outcome";
+              return (
+                <div key={k.id} className={`rounded-lg border p-2 ${learned ? "border-[#dff54a]/30 bg-[#dff54a]/[0.06]" : "border-slate-800 bg-slate-900/40"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-[10px] font-bold ${learned ? "text-[#dff54a]" : "text-emerald-300"}`}>{k.agent} → {k.audience}</span>
+                    <span className={`text-[8px] uppercase tracking-wider ${learned ? "text-[#dff54a]/70" : "text-slate-500"}`}>{learned ? "↩ learned" : k.kind.replaceAll("_", " ")}</span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] font-semibold text-slate-200">{k.topic}</p>
+                  <p className="mt-0.5 text-[9px] leading-relaxed text-slate-400">{k.insight}</p>
                 </div>
-                <p className="mt-0.5 text-[10px] font-semibold text-slate-200">{k.topic}</p>
-                <p className="mt-0.5 text-[9px] leading-relaxed text-slate-400">{k.insight}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
