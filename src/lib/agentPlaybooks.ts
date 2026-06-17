@@ -28,7 +28,7 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
     loop: [
       { phase: "Trend analysis", action: "Scan TikTok Discover for trending sounds/hashtags; pick the best reach-to-effort cluster.", autonomy: "autonomous" },
       { phase: "Music generation", action: "Generate a track aligned to the trend cluster.", autonomy: "autonomous" },
-      { phase: "Visual creation", action: "Generate a visual background (OpenClaw wrapper only if no provider API).", autonomy: "autonomous" },
+      { phase: "Visual creation", action: "Generate a visual background (browser-automation fallback only if no provider API).", autonomy: "autonomous" },
       { phase: "Package + caption", action: "Assemble upload package and draft a keyword-rich caption as approval-ready evidence.", autonomy: "autonomous" },
       { phase: "Publish", action: "Upload to TikTok — held for operator approval, never auto-posted.", autonomy: "approval_gated" },
     ],
@@ -49,7 +49,7 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
   },
   sales: {
     loop: [
-      { phase: "Lead generation", action: "Find B2B partners via Apollo/HubSpot first; OpenClaw + LinkedIn only as a compliant fallback.", autonomy: "autonomous" },
+      { phase: "Lead generation", action: "Find B2B partners via Apollo/HubSpot first; LinkedIn only as a compliant fallback.", autonomy: "autonomous" },
       { phase: "Qualification", action: "Finance subagent scores budget and need per lead.", autonomy: "autonomous" },
       { phase: "Personalized drafting", action: "Draft a specific message per qualified lead into the CRM.", autonomy: "autonomous" },
       { phase: "Outreach send", action: "Send — held for approval and provider-compliant rate limits.", autonomy: "approval_gated" },

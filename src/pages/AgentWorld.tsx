@@ -123,7 +123,7 @@ const worldDistricts = [
 ];
 
 const operatingRules = [
-  "Use an OpenClaw-compatible browser wrapper only as the physical interaction layer when an approved provider API is unavailable.",
+  "Use a browser-automation wrapper only as the physical interaction layer when an approved provider API is unavailable.",
   "Create subagents for research, scoring, drafting, QA, upload preparation, and closing instead of one overloaded prompt.",
   "If a preparation step fails, log the error, restart from the previous safe preparation phase, and do not execute external side effects.",
   "Posting, messaging, spending, contracts, refunds, account security changes, and OAuth consent stay approval-gated.",

@@ -12,7 +12,7 @@ import {
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
-import { openclawStatus, probeOpenclaw, relayToOpenclaw } from "@/lib/openclaw";
+import { probeOperatorRelay, relayToOperator, type RelayStatus } from "@/lib/operatorRelay";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 
@@ -38,7 +38,7 @@ const PLACES: Place[] = [
   { id: "commerce", name: "Cyrus", place: "Commerce Floor", role: "Dropshipping Commerce", objective: "Build a branded dropshipping winner with fast fulfillment and unit economics that work.", icon: Store, connector: "storefront", kind: "agent", x: 90, y: 66 },
   { id: "delivery", name: "Dev", place: "Delivery Workshop", role: "Fulfillment", objective: "Complete paid work and preserve margin.", icon: PackageCheck, connector: "fulfillment", kind: "agent", x: 71, y: 84 },
   { id: "finance", name: "Ledger", place: "Revenue Vault", role: "Finance", objective: "Reconcile every dollar; reject unverified revenue.", icon: WalletCards, connector: "payments", kind: "agent", x: 30, y: 84 },
-  { id: "openclaw", name: "OpenClaw", place: "Comms Relay", role: "Operator channel", objective: "Carry Hermes's briefs to the operator and commands back.", icon: RadioTower, kind: "relay", x: 13, y: 51 },
+  { id: "relay", name: "Relay", place: "Operator Relay", role: "Operator channel", objective: "Email Hermes's briefs and approval requests to the operator.", icon: RadioTower, kind: "relay", x: 13, y: 51 },
 ];
 
 export default function World() {
@@ -54,7 +54,7 @@ export default function World() {
   const [systems, setSystems] = useState<SystemHealth[]>([]);
   const [history, setHistory] = useState<HermesHistoryEntry[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeEntry[]>([]);
-  const [relay, setRelay] = useState(openclawStatus());
+  const [relay, setRelay] = useState<RelayStatus>({ connected: false, channel: "email", detail: "Probing relay…" });
 
   const connectorMap = useMemo(() => Object.fromEntries(connectors.map((c) => [c.id, c])), [connectors]);
   const fallback = useMemo(() => computeFallbackBrief(connectors, revenue, automation), [connectors, revenue, automation]);
@@ -63,7 +63,7 @@ export default function World() {
 
   const ready = useCallback((p: Place) => {
     if (p.kind === "core" || p.id === "creative") return true;
-    if (p.id === "openclaw") return relay.connected;
+    if (p.id === "relay") return relay.connected;
     return p.connector ? connectorMap[p.connector]?.status === "ready" : true;
   }, [connectorMap, relay.connected]);
 
@@ -77,7 +77,7 @@ export default function World() {
     setSystems(await loadSystemsHealth());
     setHistory(await loadHermesHistory());
     setKnowledge(await loadAgentKnowledge());
-    setRelay(await probeOpenclaw());
+    setRelay(await probeOperatorRelay());
   }, []);
 
   useEffect(() => {
@@ -97,7 +97,7 @@ export default function World() {
     await refresh();
   };
   const relayBrief = async () => {
-    const r = await relayToOpenclaw({ kind: "hermes_brief", title: `Hermes: ${brief.mood}`, body: `Bottleneck: ${brief.bottleneck}. ${brief.route}`, meta: { iq: brief.intelligenceScore } });
+    const r = await relayToOperator({ kind: "hermes_brief", title: `Hermes: ${brief.mood}`, body: `Bottleneck: ${brief.bottleneck}. ${brief.route}`, meta: { iq: brief.intelligenceScore } });
     setRelayMsg(r.message);
   };
 
@@ -239,7 +239,7 @@ function Hud({ label, value, accent }: { label: string; value: string; accent?: 
 
 function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history, onRelayBrief, onClose, authed }: {
   place: Place; ready: boolean; connector?: { status: string; nextStep: string; detail: string };
-  brief: HermesIntelligence["brief"]; relay: ReturnType<typeof openclawStatus>; relayMsg: string;
+  brief: HermesIntelligence["brief"]; relay: RelayStatus; relayMsg: string;
   history: HermesHistoryEntry[]; onRelayBrief: () => void; onClose: () => void; authed: boolean;
 }) {
   const playbook = agentPlaybooks[place.id];
@@ -282,7 +282,7 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
         <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
           <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Reasoning</p>
           <p className="mt-1 text-[10px] leading-relaxed text-slate-300">{brief.reasoning}</p>
-          <button onClick={onRelayBrief} disabled={!relay.connected} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40"><Send size={12} />Relay brief to OpenClaw</button>
+          <button onClick={onRelayBrief} disabled={!relay.connected} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40"><Send size={12} />Email brief to operator</button>
           {relayMsg && <p className="mt-2 text-[10px] text-slate-400">{relayMsg}</p>}
           {history.length > 0 && (
             <div className="mt-4">
@@ -303,11 +303,13 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
           )}
         </div>
       )}
-      {place.id === "openclaw" && (
+      {place.id === "relay" && (
         <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Relay status</p>
-          <p className={`mt-1 text-xs font-bold ${relay.connected ? "text-emerald-300" : "text-amber-300"}`}>{relay.connected ? "Connected" : "Offline"}</p>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Relay status · {relay.channel}</p>
+          <p className={`mt-1 text-xs font-bold ${relay.connected ? "text-emerald-300" : "text-amber-300"}`}>{relay.connected ? "Live" : "Offline"}</p>
           <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{relay.detail}</p>
+          <button onClick={onRelayBrief} disabled={!relay.connected || !authed} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40"><Send size={12} />{authed ? "Email the latest brief" : "Sign in to relay"}</button>
+          {relayMsg && <p className="mt-2 text-[10px] text-slate-400">{relayMsg}</p>}
         </div>
       )}
     </aside>

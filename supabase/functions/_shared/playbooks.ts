@@ -4,8 +4,8 @@
 // preserving the Operator OS doctrine: preparation is autonomous; external side
 // effects (posting, messaging, spending, OAuth/account-security) are approval-gated.
 //
-// "OpenClaw wrapper" = the browser interaction layer used only as a fallback when
-// an approved provider API is unavailable. It is never used to bypass an approval gate.
+// "Browser-automation wrapper" = the browser interaction layer used only as a fallback
+// when an approved provider API is unavailable. It is never used to bypass an approval gate.
 
 export type Autonomy = "autonomous" | "approval_gated";
 
@@ -35,9 +35,9 @@ export const PLAYBOOKS: Record<string, Playbook> = {
     mission:
       "Continuously turn live cultural trends into release-ready track + visual + caption packages that grow reach and revenue.",
     loop: [
-      { phase: "Trend analysis", action: "Scan the TikTok Discover feed for trending sounds and hashtags (e.g. #ai, #openclaw, #summergarden) and extract the cluster with the best reach-to-effort ratio.", autonomy: "autonomous" },
+      { phase: "Trend analysis", action: "Scan the TikTok Discover feed for trending sounds and hashtags (e.g. #ai, #aimusic, #summergarden) and extract the cluster with the best reach-to-effort ratio.", autonomy: "autonomous" },
       { phase: "Music generation", action: "Use the integrated music AI tool to generate a track aligned to the trend cluster.", autonomy: "autonomous" },
-      { phase: "Visual creation", action: "Generate a visual background via the video editor (OpenClaw wrapper only if no provider API is available).", autonomy: "autonomous" },
+      { phase: "Visual creation", action: "Generate a visual background via the video editor (browser-automation wrapper only if no provider API is available).", autonomy: "autonomous" },
       { phase: "Package + caption", action: "Assemble the upload package and draft a caption using Discover keywords to maximize reach. Store as approval-ready evidence.", autonomy: "autonomous" },
       { phase: "Publish", action: "Upload to TikTok. HELD for operator approval — never auto-post.", autonomy: "approval_gated" },
       { phase: "Account maintenance", action: "Any OAuth or account-security change is HELD for operator approval.", autonomy: "approval_gated" },
@@ -56,7 +56,7 @@ export const PLAYBOOKS: Record<string, Playbook> = {
     persona: "You are a Proactive AI SDR (Sales Development Representative) operating in the agent office space.",
     mission: "Increase the volume of qualified, personalized B2B touchpoints without manual human triggering.",
     loop: [
-      { phase: "Lead generation", action: "Identify potential B2B partners via approved data providers (Apollo/HubSpot first; OpenClaw + LinkedIn only as a compliant fallback).", autonomy: "autonomous" },
+      { phase: "Lead generation", action: "Identify potential B2B partners via approved data providers (Apollo/HubSpot first; LinkedIn via a compliant browser-automation fallback only).", autonomy: "autonomous" },
       { phase: "Qualification", action: "Pass each lead to a finance-specialist subagent to score budget and need.", autonomy: "autonomous" },
       { phase: "Personalized drafting", action: "Draft a specific message per qualified lead and store it in the CRM for review.", autonomy: "autonomous" },
       { phase: "Outreach send", action: "Send the message. HELD for operator approval and provider-compliant rate limits — never auto-send.", autonomy: "approval_gated" },
@@ -135,7 +135,7 @@ export const DOCTRINE = [
   "Decompose into subagents (research, scoring, drafting, QA, upload prep, closing) instead of one overloaded prompt.",
   "If a preparation step fails, log the error and restart from the previous safe preparation phase. Never retry a side-effect phase automatically.",
   "Posting, messaging, spending, contracts, refunds, account-security changes, and OAuth consent are always approval-gated.",
-  "Use an OpenClaw-compatible browser wrapper only as the physical interaction layer when an approved provider API is unavailable — never to bypass an approval gate.",
+  "Use a browser-automation wrapper only as the physical interaction layer when an approved provider API is unavailable — never to bypass an approval gate.",
 ];
 
 // Render a playbook as compact prompt context for the agent brain.
