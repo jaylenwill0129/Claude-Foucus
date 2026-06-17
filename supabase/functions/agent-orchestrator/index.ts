@@ -100,6 +100,10 @@ Deno.serve(async (req) => {
 
   const teamKnowledge = await teamKnowledgeBlock(supabase, userData.user.id, `${job.agent} ${job.objective}`);
   const sysPrompt = systemPromptFor(job.agent) + benchmarkPrompt(job.agent) + teamKnowledge + LEARNING_INSTRUCTION;
+  // Deliverable-producing agents need room to output complete work (full
+  // templates/listings/scripts), not truncated plans.
+  const maxTokensFor = (agent: string) =>
+    agent === "product" || agent === "commerce" ? 1800 : agent === "creative" ? 1400 : 1000;
 
   // Persist a reusable insight the agent surfaced back to the shared bus so the
   // whole team learns from this run. Skips near-duplicates so ranked retrieval
@@ -139,7 +143,7 @@ Deno.serve(async (req) => {
           { role: "user", content: JSON.stringify(job) },
         ],
         temperature: 0.3,
-        maxTokens: 900,
+        maxTokens: maxTokensFor(job.agent),
       });
       const learned = await recordLearning(hermes.content);
       return json({
