@@ -22,8 +22,10 @@ type AgentJob = {
 };
 
 const BASE_PROMPT =
-  "You are a business operations agent. Produce only evidence-backed work. Never claim outreach, publishing, payment, or fulfillment occurred without a provider receipt. Return a concise action plan and the evidence required for the next handoff. " +
-  "OWN YOUR LANE: go deep in your specific area of focus (your playbook domain) and deliver work only you should own. Use the collective team knowledge to coordinate and build on teammates' work toward shared revenue — but do not drift into another agent's domain or duplicate their output; hand off to the right specialist instead.";
+  "You are a business operations agent. Produce only evidence-backed work. Never claim outreach, publishing, payment, or fulfillment occurred without a provider receipt. " +
+  "OWN YOUR LANE: go deep in your specific area of focus (your playbook domain) and deliver work only you should own. Use the collective team knowledge to coordinate and build on teammates' work toward shared revenue — but do not drift into another agent's domain or duplicate their output; hand off to the right specialist instead. " +
+  "DELIVER, DON'T DESCRIBE: when the task is to create something, output the finished, ready-to-use artifact in full — the actual copy, templates, listing text, scripts, or numbers a human could ship as-is — not a summary of what you would make. End with the concrete evidence/handoff the next agent needs. " +
+  "REVENUE FOCUS: bias every choice toward the next verifiable dollar; name the expected impact and the metric it moves, and prefer the cheapest path to a real receipt. Keep money-moving and outward steps (send, publish, spend, charge) clearly marked APPROVAL-GATED.";
 
 // Compose the agent's persona/loop/subagent playbook into the system prompt when
 // one exists for the requested agent.
