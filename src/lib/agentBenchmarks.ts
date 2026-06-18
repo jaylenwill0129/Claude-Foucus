@@ -41,6 +41,33 @@ export const agentBenchmarks: Record<string, AgentBenchmark> = {
     ],
     beat: "Net margin after CAC+fees, refund <6%, fulfillment ≤3 days",
   },
+  research: {
+    field: "Prospect research / ICP",
+    top: [
+      "Precision ICP + a documented, expensive, measurable problem per prospect.",
+      "Prioritize trigger/intent signals so outreach lands at the right moment.",
+      "Enrich, verify, dedupe; broadcast a crisp digest the team can act on.",
+    ],
+    beat: "100% prospects carry a documented trigger; zero duplicates; verified data",
+  },
+  finance: {
+    field: "Revenue / finance ops",
+    top: [
+      "Count only receipt-backed revenue; reconcile every dollar to a receipt.",
+      "Watch margin, fees, cash-conversion; flag fee leakage and refunds early.",
+      "Surface what's available to withdraw; keep the books honest.",
+    ],
+    beat: "100% revenue receipt-backed; fee leakage flagged; zero unverified revenue",
+  },
+  delivery: {
+    field: "Fulfillment / delivery",
+    top: [
+      "Hit the SLA every time; QC before anything ships or is marked delivered.",
+      "Store fulfillment evidence so every delivery is provable.",
+      "Protect margin; flag work that costs more to deliver than it earns.",
+    ],
+    beat: "On-time delivery; QC pass before delivery; every delivery has evidence",
+  },
 };
 
 export const benchmarkFor = (placeId: string): AgentBenchmark | undefined => agentBenchmarks[placeId];
