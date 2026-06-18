@@ -346,7 +346,13 @@ function TreasuryPanel({ authed }: { authed: boolean }) {
       {err && <p className="mt-2 text-[10px] text-amber-300/80">{err}</p>}
       {t && (
         <>
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="mt-2 rounded-xl border border-[#dff54a]/30 bg-[#dff54a]/[0.06] p-3">
+            <p className="text-[9px] uppercase tracking-wider text-slate-500">Real sales · Shopify (any gateway)</p>
+            <p className="text-2xl font-bold text-[#dff54a]">{usd(t.sales.grossCents)}</p>
+            <p className="text-[9px] text-slate-400">{t.sales.count} paid order{t.sales.count === 1 ? "" : "s"} · real revenue, gateway-agnostic</p>
+          </div>
+          <p className="mt-3 text-[9px] font-bold uppercase tracking-wider text-slate-500">Stripe balance ({t.mode})</p>
+          <div className="mt-1 grid grid-cols-2 gap-2">
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-2.5">
               <p className="text-[9px] uppercase tracking-wider text-slate-500">Available</p>
               <p className="text-lg font-bold text-emerald-300">{usd(t.availableCents)}</p>

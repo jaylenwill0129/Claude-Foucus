@@ -483,9 +483,11 @@ export const startGoogleDriveConnect = async (): Promise<{ url: string } | { err
 // the operator in Stripe (never automated).
 export type Payout = { id: string; amountCents: number; currency: string; status: string; arrivalDate: number; method: string };
 export type PayoutDestination = { bank: string; last4: string; currency: string; status: string };
+export type SalesSummary = { count: number; grossCents: number; currency: string };
 export type Treasury = {
   mode: "live" | "test";
   currency: string;
+  sales: SalesSummary;
   availableCents: number;
   pendingCents: number;
   payouts: Payout[];
