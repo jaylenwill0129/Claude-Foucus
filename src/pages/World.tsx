@@ -370,6 +370,23 @@ function TreasuryPanel({ authed }: { authed: boolean }) {
           )}
           <a href={t.withdrawUrl} target="_blank" rel="noopener noreferrer" className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-2 text-[10px] font-bold text-[#0a0e14]"><WalletCards size={12} />Withdraw to bank (Stripe)</a>
           <p className="mt-1.5 text-[9px] text-slate-500">Withdrawals happen in your Stripe dashboard — the agents never move your money.</p>
+
+          {/* Cash App payout helper */}
+          <div className="mt-4 rounded-xl border border-[#00d54b]/30 bg-[#00d54b]/[0.06] p-3">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-[#00d54b]">Send earnings to Cash App · $JayOWilliams</p>
+            <div className="mt-1.5 flex items-center gap-2 text-[10px]">
+              <span className={`h-2 w-2 rounded-full ${t.hasPayoutDestination ? "bg-emerald-400" : "bg-amber-400"}`} />
+              <span className="text-slate-300">{t.hasPayoutDestination ? `Payout bank linked (•••• ${t.payoutDestinations[0]?.last4})` : "No payout bank linked yet"}</span>
+            </div>
+            {t.mode === "test" && <p className="mt-1.5 text-[9px] leading-relaxed text-amber-300/80">Stripe is in test mode — this balance isn't real and can't pay out. Activate live mode + make a real sale first.</p>}
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-[9px] leading-relaxed text-slate-400">
+              <li>In Cash App → <span className="text-slate-300">Money → Direct deposit</span> → copy your routing + account number.</li>
+              <li>In Stripe payouts (below), add that as your bank account.</li>
+              <li>Turn on <span className="text-slate-300">automatic payouts</span> — every real sale then auto-lands in Cash App.</li>
+            </ol>
+            <a href={t.payoutSetupUrl} target="_blank" rel="noopener noreferrer" className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#00d54b]/50 px-3 py-2 text-[10px] font-bold text-[#00d54b]"><WalletCards size={12} />Open Stripe payout settings</a>
+            <p className="mt-1.5 text-[9px] text-slate-500">You enter the account details — I never touch your banking info or move funds.</p>
+          </div>
         </>
       )}
     </div>

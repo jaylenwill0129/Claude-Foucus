@@ -482,13 +482,17 @@ export const startGoogleDriveConnect = async (): Promise<{ url: string } | { err
 // can see and withdraw money the agents earn. Read-only; withdrawing is done by
 // the operator in Stripe (never automated).
 export type Payout = { id: string; amountCents: number; currency: string; status: string; arrivalDate: number; method: string };
+export type PayoutDestination = { bank: string; last4: string; currency: string; status: string };
 export type Treasury = {
   mode: "live" | "test";
   currency: string;
   availableCents: number;
   pendingCents: number;
   payouts: Payout[];
+  payoutDestinations: PayoutDestination[];
+  hasPayoutDestination: boolean;
   withdrawUrl: string;
+  payoutSetupUrl: string;
   note: string;
 };
 
