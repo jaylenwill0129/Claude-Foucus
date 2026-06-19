@@ -204,6 +204,10 @@ export default function World() {
                   </div>
                   <p className="mt-0.5 text-[10px] font-semibold text-slate-200">{k.topic}</p>
                   <p className="mt-0.5 text-[9px] leading-relaxed text-slate-400">{k.insight}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-emerald-400/70" style={{ width: `${Math.round(Math.min(1, k.confidence) * 100)}%` }} /></div>
+                    <span className="shrink-0 text-[8px] tracking-wider text-slate-500">{Math.round(Math.min(1, k.confidence) * 100)}%{k.reinforcedCount > 0 ? ` · ↻${k.reinforcedCount}` : ""}</span>
+                  </div>
                 </div>
               );
             })}

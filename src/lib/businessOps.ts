@@ -521,18 +521,21 @@ export type KnowledgeEntry = {
   topic: string;
   insight: string;
   confidence: number;
+  reinforcedCount: number;
   createdAt: string;
 };
 
 // The shared learning bus: what the agents have learned and broadcast to each
-// other (Maya's research digests, outcomes, signals). RLS-scoped to the operator.
+// other (Maya's research digests, outcomes, signals). Sorted by proven confidence
+// so the team's best, most-reinforced tactics surface first. RLS-scoped to operator.
 export const loadAgentKnowledge = async (limit = 12): Promise<KnowledgeEntry[]> => {
   const { data: sess } = await supabase.auth.getSession();
   if (!sess.session?.user) return [];
   const { data, error } = await supabase
     .from("agent_knowledge" as never)
-    .select("id,agent,audience,kind,topic,insight,confidence,created_at")
-    .order("created_at", { ascending: false })
+    .select("id,agent,audience,kind,topic,insight,confidence,reinforced_count,updated_at,created_at")
+    .order("confidence", { ascending: false })
+    .order("updated_at", { ascending: false })
     .limit(limit);
   if (error || !data) return [];
   return (data as unknown as Array<Record<string, unknown>>).map((row) => ({
@@ -543,6 +546,7 @@ export const loadAgentKnowledge = async (limit = 12): Promise<KnowledgeEntry[]> 
     topic: String(row.topic ?? ""),
     insight: String(row.insight ?? ""),
     confidence: Number(row.confidence ?? 0),
+    reinforcedCount: Number(row.reinforced_count ?? 0),
     createdAt: String(row.created_at ?? ""),
   }));
 };
