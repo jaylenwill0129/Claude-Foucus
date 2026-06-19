@@ -60,15 +60,15 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
   },
   commerce: {
     loop: [
-      { phase: "Niche & product research", action: "Hunt micro-niches in high-profit categories; target the $10-30 sweet spot; surface 3-5 weekly test candidates before saturation.", autonomy: "autonomous" },
-      { phase: "Supplier & fulfillment vetting", action: "Prefer US/EU warehouses for 3-5 day delivery; honor TikTok Shop's ~3-day US rule; require QC for sub-6% refunds.", autonomy: "autonomous" },
-      { phase: "Brand & positioning", action: "Private label + custom packaging + unboxing inserts; check brandable domain availability (prefer .com) before naming; professional copy.", autonomy: "autonomous" },
-      { phase: "Listing + ad creative", action: "Draft the unpublished Shopify listing priced for net margin; produce hook-first TikTok/Reels video concepts; plan multi-channel mix.", autonomy: "autonomous" },
-      { phase: "Automation + KPI dashboard", action: "Spec AutoDS-style fulfillment + 24/7 stock monitoring + support bot; model SKU-level CAC/LTV/net margin with cut/scale thresholds.", autonomy: "autonomous" },
-      { phase: "Publish / spend / charge", action: "Publish listing, launch paid ads, place supplier orders, charge customers — all held for operator approval, never autonomous.", autonomy: "approval_gated" },
+      { phase: "Find a viral product", action: "Scan TikTok / TikTok Shop for a proven viral product ('TikTok made me buy it', trending + best-selling) with real demand signals — views, sales velocity, comments.", autonomy: "autonomous" },
+      { phase: "Source on AliExpress", action: "Find the same product on AliExpress; capture the URL + unit cost + a fast shipping option.", autonomy: "autonomous" },
+      { phase: "Build the Shopify page", action: "Generate the product page from the AliExpress URL (PagePilot.ai or direct) and import to Shopify as an unpublished draft, priced for net margin after product cost + ad spend + fees.", autonomy: "autonomous" },
+      { phase: "Ad creative + test budget", action: "Produce hook-first TikTok/Meta video ads and a test-budget ladder ($10-20/day to start, scale winners to $50-100+); test several products; cut losers, double down on winners.", autonomy: "autonomous" },
+      { phase: "Unit economics + scale rules", action: "Model SKU-level COGS / CAC / net margin with explicit cut/scale thresholds; run multiple products and let the market pick the winner.", autonomy: "autonomous" },
+      { phase: "Publish / ad spend / orders / charge", action: "Publish listing, launch/fund ads, place supplier orders, charge customers — all held for operator approval, never autonomous.", autonomy: "approval_gated" },
     ],
-    cadence: "Continuous research with a weekly 3-5 product test batch; publishing and spend are deliberate gated steps.",
-    guardrails: ["No publish, ad spend, supplier order, or charge without approval + receipt; never enter payment credentials.", "Honor TikTok Shop US/3-day fulfillment; true shipping times; QC for sub-6% refunds.", "Respect Shopify/TikTok/Meta ToS; no counterfeit/restricted products; evidence-only metrics."],
+    cadence: "Continuous: new viral-product candidates sourced and prepped on the loop; publishing and spend are deliberate gated steps.",
+    guardrails: ["No publish, ad spend, supplier order, or charge without approval + receipt; never enter payment credentials.", "No fabricated metrics, sales, or income claims (no '$X/week' promises) — real unit economics only.", "Respect TikTok/Meta/Shopify/AliExpress ToS; no counterfeit/IP-infringing/restricted products; fast fulfillment + sub-6% refunds."],
   },
   research: {
     loop: [
