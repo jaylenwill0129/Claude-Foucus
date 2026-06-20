@@ -513,6 +513,28 @@ export const loadTreasury = async (): Promise<Treasury | { error: string }> => {
   }
 };
 
+// Invoke any agent's live brain (the orchestrator) on demand from the world.
+// Returns the agent's produced work + what it learned (reinforced or new).
+export type AgentRunResult = {
+  content: string;
+  learned?: { text?: string; reinforced?: boolean; confidence?: number } | null;
+  brain?: string;
+};
+export const runAgent = async (agent: string, objective: string): Promise<AgentRunResult | { error: string }> => {
+  const endpoint = functionUrl("agent-orchestrator");
+  if (!endpoint) return { error: "Supabase URL not configured." };
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session) return { error: "Sign in to run an agent." };
+  try {
+    const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ agent, objective }) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: body?.error ?? `Orchestrator returned HTTP ${res.status}.` };
+    return { content: String(body?.result?.content ?? ""), learned: body?.learned ?? null, brain: body?.brain };
+  } catch {
+    return { error: "Could not reach the orchestrator." };
+  }
+};
+
 export type KnowledgeEntry = {
   id: string;
   agent: string;

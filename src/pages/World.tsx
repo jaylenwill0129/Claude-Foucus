@@ -7,9 +7,9 @@ import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
   loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects, loadAgentKnowledge,
-  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect, loadTreasury,
+  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect, loadTreasury, runAgent,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
-  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type KnowledgeEntry, type DomainCheck, type Treasury,
+  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type KnowledgeEntry, type DomainCheck, type Treasury, type AgentRunResult,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
@@ -291,6 +291,7 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
           <p className="mt-2 text-[9px] text-slate-500">Metrics to beat: {benchmark.beat}</p>
         </div>
       )}
+      {benchmark && <AgentRunPanel placeId={place.id} agentName={place.name} authed={authed} />}
       {place.id === "creative" && <CreativePanel authed={authed} />}
       {place.id === "commerce" && <DomainPanel />}
       {place.id === "delivery" && <DrivePanel authed={authed} />}
@@ -332,6 +333,49 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
         </div>
       )}
     </aside>
+  );
+}
+
+const RUN_OBJECTIVES: Record<string, string> = {
+  research: "Find this week's best home-services prospects, each with a documented buying signal, ranked by signal strength.",
+  sales: "Draft a benchmark-beating first cold outreach email for our best-fit prospect (do not send).",
+  product: "Propose and outline the next digital product to sell, with a price and the channel.",
+  commerce: "Find a viral product, validate it against the best-rated competitor, and draft the Shopify listing + ad test plan.",
+  creative: "Design a release-ready short-form package (1-3s hook, caption, hashtags) for a trending sound.",
+  finance: "Summarize real revenue, margins, fees, and what's available to withdraw.",
+  delivery: "Define the fulfillment SOP + QC checklist for our current products.",
+};
+
+function AgentRunPanel({ placeId, agentName, authed }: { placeId: string; agentName: string; authed: boolean }) {
+  const [obj, setObj] = useState(RUN_OBJECTIVES[placeId] ?? "");
+  const [running, setRunning] = useState(false);
+  const [out, setOut] = useState<AgentRunResult | null>(null);
+  const [err, setErr] = useState("");
+  const run = async () => {
+    if (!obj.trim()) return;
+    setRunning(true); setErr(""); setOut(null);
+    const r = await runAgent(placeId, obj.trim());
+    if ("error" in r) setErr(r.error); else setOut(r);
+    setRunning(false);
+  };
+  return (
+    <div className="mt-5">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Put {agentName} to work</p>
+      {!authed && <p className="mt-2 text-[10px] text-slate-500">Sign in to run this agent.</p>}
+      {authed && (
+        <>
+          <textarea value={obj} onChange={(e) => setObj(e.target.value)} rows={2} className="mt-2 w-full resize-none rounded-lg border border-slate-700 bg-slate-900/60 px-2.5 py-1.5 text-[10px] leading-relaxed text-slate-100 focus:border-[#dff54a]/50 focus:outline-none" />
+          <button onClick={run} disabled={running || !obj.trim()} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40">{running ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}{running ? `${agentName} is working…` : `Run ${agentName}`}</button>
+          {err && <p className="mt-2 text-[10px] text-amber-300/80">{err}</p>}
+          {out && (
+            <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/40 p-2.5">
+              <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap font-sans text-[10px] leading-relaxed text-slate-300">{out.content}</pre>
+              {out.learned?.text && <p className="mt-2 border-t border-slate-800 pt-1.5 text-[9px] text-[#dff54a]/80">↩ learned: {out.learned.text}{out.learned.reinforced ? ` · ↻ reinforced (${Math.round((out.learned.confidence ?? 0) * 100)}%)` : ""}</p>}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
