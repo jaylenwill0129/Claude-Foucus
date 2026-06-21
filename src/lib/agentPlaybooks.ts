@@ -60,15 +60,16 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
   },
   commerce: {
     loop: [
-      { phase: "Find a viral product", action: "Scan TikTok / TikTok Shop for a proven viral product ('TikTok made me buy it', trending + best-selling) with real demand signals — views, sales velocity, comments.", autonomy: "autonomous" },
-      { phase: "Source on AliExpress", action: "Find the same product on AliExpress; capture the URL + unit cost + a fast shipping option.", autonomy: "autonomous" },
-      { phase: "Build the Shopify page", action: "Generate the product page from the AliExpress URL (PagePilot.ai or direct) and import to Shopify as an unpublished draft, priced for net margin after product cost + ad spend + fees.", autonomy: "autonomous" },
-      { phase: "Ad creative + test budget", action: "Produce hook-first TikTok/Meta video ads and a test-budget ladder ($10-20/day to start, scale winners to $50-100+); test several products; cut losers, double down on winners.", autonomy: "autonomous" },
-      { phase: "Unit economics + scale rules", action: "Model SKU-level COGS / CAC / net margin with explicit cut/scale thresholds; run multiple products and let the market pick the winner.", autonomy: "autonomous" },
-      { phase: "Publish / ad spend / orders / charge", action: "Publish listing, launch/fund ads, place supplier orders, charge customers — all held for operator approval, never autonomous.", autonomy: "approval_gated" },
+      { phase: "09:00 — Find & screen winners", action: "Bulk-import candidates and screen each against the WINNING-PRODUCT TEST: trending/viral (TikTok/FB buzz) + unique wow-factor (hard to find in stores) + problem-solving. Fail any leg → reject.", autonomy: "autonomous" },
+      { phase: "Validate demand", action: "Read spy-tool signals (units sold, revenue, trend) + AI deep research on demand, competition, and margin. Source the match on AliExpress with unit cost + fast shipping.", autonomy: "autonomous" },
+      { phase: "Competitive-validation gate", action: "Benchmark the BEST-RATED competitor (rating, reviews, price, strength). Proceed only if you beat/match on quality/value AND clear healthy net margin after COGS + ad spend + fees.", autonomy: "autonomous" },
+      { phase: "12:00 — Lifestyle creative", action: "Generate AI lifestyle images (product in use) that outperform white-bg stock; produce hook-first TikTok/Meta + AI-UGC ad creative.", autonomy: "autonomous" },
+      { phase: "15:00 — Optimize & list", action: "Rewrite keyword-rich SEO titles/descriptions, price for margin, prefer a .store domain; set winners Active (publish to Shopify when armed).", autonomy: "autonomous" },
+      { phase: "Continuous — profit-based scaling", action: "Model SKU CAC/LTV/net margin; on a profitable campaign recommend bumping budget ($50→$150) to reinvest, cut losers fast. PMAX ~$50/day, Meta broad, Omnisend abandoned-cart flows.", autonomy: "autonomous" },
+      { phase: "Ad spend / orders / charge", action: "Launch/fund/scale ads, place supplier orders, charge customers — all held for operator approval, never autonomous.", autonomy: "approval_gated" },
     ],
-    cadence: "Continuous: new viral-product candidates sourced and prepped on the loop; publishing and spend are deliberate gated steps.",
-    guardrails: ["No publish, ad spend, supplier order, or charge without approval + receipt; never enter payment credentials.", "No fabricated metrics, sales, or income claims (no '$X/week' promises) — real unit economics only.", "Respect TikTok/Meta/Shopify/AliExpress ToS; no counterfeit/IP-infringing/restricted products; fast fulfillment + sub-6% refunds."],
+    cadence: "Recursive daily loop (09:00 import/screen · 12:00 creative · 15:00 optimize+list · continuous profit-scaling). Listing publishes when armed; all spend is a gated step.",
+    guardrails: ["List only products passing all 3 winning traits + the competitive gate + healthy margin.", "No ad spend, supplier order, or charge without approval + receipt; never enter payment credentials.", "No fabricated demand, units sold, reviews, or income (no '$X/week') — real unit economics only.", "Respect TikTok/Meta/Google/Shopify/AliExpress ToS; no counterfeit/IP/restricted products; truthful claims; sub-6% refunds."],
   },
   research: {
     loop: [
