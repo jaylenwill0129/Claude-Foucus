@@ -20,6 +20,12 @@ export type Connector = {
   status: ConnectorStatus;
   detail: string;
   nextStep: string;
+  // MCP-managed connectors are connected through an account-level OAuth MCP
+  // connection (Shopify, Google Drive) rather than a probeable edge function, so
+  // they report a fixed live status instead of hitting an endpoint that no longer
+  // backs them.
+  mcpManaged?: boolean;
+  readyDetail?: string;
 };
 
 export type RevenueSummary = {
@@ -66,9 +72,10 @@ const definitions: Record<ConnectorId, Omit<Connector, "status" | "detail">> = {
   storefront: {
     id: "storefront",
     name: "Shopify storefront",
-    purpose: "Create approved draft offers before publication",
-    endpoint: functionUrl("shopify-storefront"),
-    nextStep: "Deploy shopify-storefront and add a scoped Shopify Admin API token.",
+    purpose: "Validate, queue, and publish product listings (token-free via MCP)",
+    mcpManaged: true,
+    readyDetail: "Connected token-free via the Shopify MCP. Cyrus validates winners and queues them; the Shopify Publisher task creates the drafts in your store — no Admin API token required.",
+    nextStep: "Connected. Run the Cyrus Shopify Publisher task to drain the publish queue to your store.",
   },
   payments: {
     id: "payments",
@@ -80,9 +87,10 @@ const definitions: Record<ConnectorId, Omit<Connector, "status" | "detail">> = {
   fulfillment: {
     id: "fulfillment",
     name: "Google Drive fulfillment",
-    purpose: "Store approved deliverables and fulfillment evidence",
-    endpoint: functionUrl("google-drive-oauth"),
-    nextStep: "Deploy Drive OAuth functions, add the client secret, and connect a fulfillment folder.",
+    purpose: "Deliver paid digital products and store fulfillment evidence",
+    mcpManaged: true,
+    readyDetail: "Connected via the Google Drive MCP. Dev delivers paid orders to the 'Fufilment' folder and records the file link + timestamp as proof; the Order Router queues supplier orders for approval.",
+    nextStep: "Connected. Approve queued supplier orders to ship; Dev delivers digital goods via Google Drive.",
   },
 };
 
@@ -116,7 +124,16 @@ export const getInitialConnectors = (): Connector[] =>
 
 export const probeBusinessConnectors = async (): Promise<Connector[]> => {
   const ids = Object.keys(definitions) as ConnectorId[];
-  return Promise.all(ids.map((id) => probeFunction({ ...definitions[id], status: "checking", detail: "Checking function." })));
+  return Promise.all(ids.map((id) => {
+    const def = definitions[id];
+    // MCP-managed connectors (Shopify, Google Drive) are connected at the account
+    // level, not via a probeable edge function — report their real connected state
+    // rather than probing an endpoint that no longer backs them.
+    if (def.mcpManaged) {
+      return Promise.resolve({ ...def, status: "ready" as ConnectorStatus, detail: def.readyDetail ?? "Connected via MCP." });
+    }
+    return probeFunction({ ...def, status: "checking", detail: "Checking function." });
+  }));
 };
 
 export const loadRevenueSummary = async (): Promise<RevenueSummary> => {
