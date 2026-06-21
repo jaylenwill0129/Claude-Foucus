@@ -37,15 +37,18 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
   },
   product: {
     loop: [
-      { phase: "Market intelligence", action: "Research demand, competitors, pricing, and the expensive problem; go/no-go status.", autonomy: "autonomous" },
-      { phase: "Brief + outline", action: "Define audience, promise, scope, and chapter structure.", autonomy: "autonomous" },
-      { phase: "Manuscript + product draft", action: "Write the manuscript and render the sellable HTML/PDF with worksheets.", autonomy: "autonomous" },
-      { phase: "Editorial / quality / compliance", action: "Self-review and a compliance gate; block on failed claims/originality.", autonomy: "autonomous" },
-      { phase: "Listing + marketing pack", action: "Draft Gumroad copy + pricing and generate cover, mockup, pins, UGC scripts, calendar.", autonomy: "autonomous" },
-      { phase: "Publish", action: "List to Gumroad/Shopify and charge — held for operator approval, never auto-published.", autonomy: "approval_gated" },
+      { phase: "1 · Research", action: "Confirm real buyer demand, competitor pricing, and repeat-seller patterns before writing a word (market-research-status).", autonomy: "autonomous" },
+      { phase: "2 · Product strategy", action: "Lock title, audience, promise, price lane, and format; offer_score ≥ 70 (publisher-strategy).", autonomy: "autonomous" },
+      { phase: "3 · Manuscript", action: "Write ≥ 8 substantive chapters with concrete examples and step-by-step actions.", autonomy: "autonomous" },
+      { phase: "4 · Editorial QA", action: "Strip repetition, generic language, and weak sections until grade 'publisher_review_ready'.", autonomy: "autonomous" },
+      { phase: "5 · Design QA", action: "Check spacing, buyer-facing language, visuals, and PDF layout safety (system-audit).", autonomy: "autonomous" },
+      { phase: "6 · Bundle builder", action: "Assemble guide + trackers + calendars + templates + ≥ 5 bonus tools (planner-bundle).", autonomy: "autonomous" },
+      { phase: "7 · Sales page", action: "Write headline, price, FAQ, preview assets, and offer positioning (gumroad-copy).", autonomy: "autonomous" },
+      { phase: "8 · Launch assets", action: "Produce ≥ 20 short-form scripts, organic calendar, Pinterest pins, AI-UGC prompts, and cover/lifestyle visuals.", autonomy: "autonomous" },
+      { phase: "9 · Approval", action: "Quality score ≥ 82 + market proof, then publish / charge / paid ads — held for operator approval.", autonomy: "approval_gated" },
     ],
-    cadence: "Runs the full product pipeline on demand; publishing is a single gated step.",
-    guardrails: ["No publish or charge without approval + receipt.", "Compliance/claims review must pass first.", "Original work only; respect platform ToS."],
+    cadence: "Runs the full 9-stage publisher pipeline; targets quality score ≥ 82 before the gated approval step.",
+    guardrails: ["Quality score ≥ 82 (ready_for_review) before approval; below that, fix failing checks.", "No publish, charge, or paid ads without approval + receipt.", "Verify real market proof; never fabricate proof, reviews, or income.", "Compliance + originality pass first; original work only."],
   },
   sales: {
     loop: [
@@ -95,11 +98,12 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
   delivery: {
     loop: [
       { phase: "Receive approved order", action: "Pick up a paid/approved order for fulfillment.", autonomy: "autonomous" },
-      { phase: "QC", action: "Verify the deliverable is correct and accessible before sending.", autonomy: "autonomous" },
-      { phase: "Deliver", action: "Send the digital download (or store the deliverable) to the buyer.", autonomy: "autonomous" },
-      { phase: "Store evidence", action: "Save delivery proof (email/tracking) to the order record.", autonomy: "autonomous" },
+      { phase: "QC", action: "Verify the deliverable is correct, complete, and accessible before sending.", autonomy: "autonomous" },
+      { phase: "Store in Google Drive", action: "Place the deliverable (PDF/bundle) in the Drive 'Fufilment' folder, organized per order, and prepare the buyer's access link.", autonomy: "autonomous" },
+      { phase: "Record proof", action: "Save the Drive file id + view link + timestamp as delivery evidence on the order record.", autonomy: "autonomous" },
+      { phase: "Grant access", action: "Change file sharing / access permissions — held for operator approval, never autonomous.", autonomy: "approval_gated" },
     ],
-    cadence: "Fires on each paid order via the fulfillment poller; SLA-driven.",
-    guardrails: ["QC pass before any delivery.", "Every delivery has stored evidence.", "Protect margin; flag unprofitable fulfillment."],
+    cadence: "Fires on each paid order; SLA-driven. Delivers digital goods via the connected Google Drive.",
+    guardrails: ["QC pass before any delivery.", "Every delivery has a stored Drive link as evidence.", "Never modify file sharing/access controls autonomously — operator-gated.", "Protect margin; flag unprofitable fulfillment."],
   },
 };
