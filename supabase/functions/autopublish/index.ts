@@ -1,10 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Cyrus's autonomous product engine. TOKEN-FREE: validates a winning product and
-// QUEUES it into product_drafts (status pending_publish). The 'cyrus-shopify-
-// publisher' scheduled task drains the queue to the live store via the Shopify MCP
-// OAuth connection — no shpat_ Admin API token required anywhere.
-// Scheduled via pg_cron 'autopublish-drafts' (0 */8 * * *).
+// QUEUES it into product_drafts (pending_publish). The 'cyrus-shopify-publisher'
+// scheduled task drains the queue to the live store via the Shopify MCP OAuth
+// connection — no shpat_ token. Scheduled via pg_cron 'autopublish-drafts' (0 */8).
+// v9 adds a COMPLIANCE + COMPLETENESS gate so listings are not rejected by Shopify
+// or a payment processor, plus premium, conversion-ready copy.
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-automation-secret" };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -14,7 +15,7 @@ const MODEL = Deno.env.get("HERMES_MODEL") ?? "nousresearch/hermes-4-70b";
 
 async function hermesJson(system: string, user: string) {
   const key = Deno.env.get("NOUS_API_KEY");
-  const r = await fetch(`${NOUS_BASE}/chat/completions`, { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL, messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0.4, max_tokens: 1300 }) });
+  const r = await fetch(`${NOUS_BASE}/chat/completions`, { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL, messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0.4, max_tokens: 1500 }) });
   const raw = await r.json().catch(() => ({}));
   const txt = raw?.choices?.[0]?.message?.content ?? "";
   const m = txt.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -23,7 +24,7 @@ async function hermesJson(system: string, user: string) {
   try { return JSON.parse(first >= 0 && last > first ? bodyt.slice(first, last + 1) : bodyt); } catch { return null; }
 }
 
-const SYSTEM = "You are Cyrus, a top-performing AI Commerce Director running a TikTok-driven Shopify dropshipping brand. WINNING-PRODUCT TEST — only propose a product that passes ALL THREE traits: (1) TRENDING/VIRAL with real recent buzz on TikTok/Facebook, (2) UNIQUE WOW-FACTOR that is hard to find in local brick-and-mortar stores, (3) PROBLEM-SOLVING — it fixes a real problem or insecurity. Source it cheaply on AliExpress. COMPETITIVE VALIDATION GATE: benchmark the candidate against the BEST-RATED competing product already on the market (its rating, review volume, price, key strength). Only proceed if your product can BEAT or MATCH the market leader on quality/value AND clear a healthy net margin after product cost + ad spend + fees — a product worse than what's already selling will not get bought, so reject it. Write a KEYWORD-RICH, SEO-optimized title and descriptionHtml: weave in every relevant buyer keyword naturally, lead with the benefit, frame the product 'in use' (lifestyle), and keep all claims truthful — never misleading. Be honest and evidence-based; no fabricated numbers or income claims. Respond with ONLY a JSON object (no prose): {\"verdict\": \"proceed\" | \"reject\", \"reason\": string, \"title\": string, \"priceUsd\": number, \"sku\": string, \"productType\": string, \"descriptionHtml\": string, \"seoKeywords\": string[], \"winningTraits\": {\"trending\": boolean, \"wowFactor\": boolean, \"problemSolving\": boolean}, \"competitor\": {\"name\": string, \"rating\": number, \"reviewCount\": number, \"priceUsd\": number}, \"advantage\": string, \"estCogsUsd\": number, \"estNetMarginPct\": number}. Set verdict 'proceed' ONLY when ALL three winningTraits are true AND the product beats/matches the best-rated competitor AND margin is healthy; otherwise 'reject'.";
+const SYSTEM = "You are Cyrus, a top-performing AI Commerce Director running a TikTok-driven Shopify dropshipping brand. WINNING-PRODUCT TEST — only propose a product that passes ALL THREE traits: (1) TRENDING/VIRAL with real recent buzz, (2) UNIQUE WOW-FACTOR hard to find in local stores, (3) PROBLEM-SOLVING. Source cheaply on AliExpress. COMPETITIVE VALIDATION GATE: benchmark the BEST-RATED competitor (rating, reviews, price, strength); proceed only if you beat/match it on quality/value AND clear a healthy net margin after product cost + ad spend + fees. COMPLIANCE GATE (so the listing is NEVER rejected by Shopify or a payment processor): only propose products that are NOT restricted/prohibited (no weapons, vape/nicotine, CBD, adult, medical devices, supplements), NOT trademarked or brand-name knockoffs (generic brand only), and that make NO medical, health-cure, weight-loss, or income claims. Use ORIGINAL rewritten copy (never scraped manufacturer text). Keep price in a low-chargeback lane. COMPLETENESS (a complete listing converts AND passes review): descriptionHtml must be a professional, original listing containing, in order: a benefit-led intro <p>; a '<strong>What's included</strong>' list; a key '<strong>Features</strong>' list with concrete specs/materials; a '<strong>Shipping & Processing</strong>' line with an ACCURATE window (e.g. 'Processing 1-3 business days; delivery 7-12 business days') — never promise unrealistic 1-2 day shipping; a '<strong>Returns</strong>' line offering a 30-day return/refund; and a short satisfaction-guarantee line. Truthful claims only. Respond with ONLY a JSON object: {\"verdict\": \"proceed\" | \"reject\", \"reason\": string, \"title\": string, \"priceUsd\": number, \"sku\": string, \"productType\": string, \"descriptionHtml\": string, \"seoKeywords\": string[], \"winningTraits\": {\"trending\": boolean, \"wowFactor\": boolean, \"problemSolving\": boolean}, \"compliance\": {\"ok\": boolean, \"issues\": string[]}, \"shippingNote\": string, \"competitor\": {\"name\": string, \"rating\": number, \"reviewCount\": number, \"priceUsd\": number}, \"advantage\": string, \"estCogsUsd\": number, \"estNetMarginPct\": number}. Set verdict 'proceed' ONLY if all three winningTraits are true AND it beats/matches the best-rated competitor AND margin is healthy AND compliance.ok is true; otherwise 'reject'.";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -47,18 +48,19 @@ Deno.serve(async (req) => {
   const dryRun = body.dryRun === true;
   if (!owner && !dryRun) return json({ skipped: "autopilot not armed" });
 
-  // Dedupe against titles already queued/published for this owner.
   const recentTitles = new Set<string>();
   if (owner) {
     const { data: drafts } = await supabase.from("product_drafts").select("title").eq("owner_id", owner).order("created_at", { ascending: false }).limit(100);
     for (const d of (drafts ?? [])) recentTitles.add(String(d.title).toLowerCase());
   }
 
-  const product = await hermesJson(SYSTEM, JSON.stringify({ task: "Propose ONE product that passes the WINNING-PRODUCT TEST and the competitive-validation gate, to queue for publishing now.", avoidTitles: [...recentTitles].slice(0, 60) }));
+  const product = await hermesJson(SYSTEM, JSON.stringify({ task: "Propose ONE product that passes the WINNING-PRODUCT TEST, the competitive gate, and the COMPLIANCE + COMPLETENESS gate, to queue for publishing now.", avoidTitles: [...recentTitles].slice(0, 60) }));
   if (!product) return json({ error: "could not parse product from model" }, 502);
   const wt = product.winningTraits || {};
-  if (product.verdict !== "proceed") return json({ outcome: "rejected_by_gate", reason: product.reason, winningTraits: wt, competitor: product.competitor });
+  const comp = product.compliance || {};
+  if (product.verdict !== "proceed") return json({ outcome: "rejected_by_gate", reason: product.reason, winningTraits: wt, compliance: comp, competitor: product.competitor });
   if (!(wt.trending && wt.wowFactor && wt.problemSolving)) return json({ outcome: "rejected_by_gate", reason: "failed winning-product test (needs all 3: trending + wow-factor + problem-solving)", winningTraits: wt });
+  if (comp.ok === false) return json({ outcome: "rejected_by_gate", reason: "compliance: " + ((comp.issues || []).join("; ") || "would risk Shopify/payment rejection"), compliance: comp });
   if (recentTitles.has(String(product.title || "").toLowerCase())) return json({ outcome: "skipped_duplicate", title: product.title });
   if (dryRun) return json({ outcome: "dry_run", product });
 
@@ -73,5 +75,5 @@ Deno.serve(async (req) => {
     if (String(error.message).includes("duplicate")) return json({ outcome: "skipped_duplicate", title: product.title });
     return json({ error: "could not queue product", detail: error.message }, 500);
   }
-  return json({ outcome: "queued_for_publish", draftId: ins?.id, title: product.title, priceUsd: product.priceUsd, winningTraits: wt, competitor: product.competitor, advantage: product.advantage });
+  return json({ outcome: "queued_for_publish", draftId: ins?.id, title: product.title, priceUsd: product.priceUsd, winningTraits: wt, compliance: comp, competitor: product.competitor, advantage: product.advantage });
 });
