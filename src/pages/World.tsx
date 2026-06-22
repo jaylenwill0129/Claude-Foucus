@@ -182,6 +182,24 @@ export default function World() {
           <p className="mt-1 text-[10px] leading-relaxed text-slate-400"><span className="text-amber-300">{brief.bottleneck}</span> — {brief.route}</p>
         </div>
 
+        {/* live automation / ops health — reflects real state, auto-refreshed every 60s */}
+        <div className="absolute left-4 top-4 w-[210px] rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+              <span className={`h-1.5 w-1.5 rounded-full ${automation.enabled && !automation.paused ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />Automation
+            </p>
+            <span className="text-[9px] font-bold text-slate-400">{automation.enabled ? (automation.paused ? "paused" : "armed") : "idle"}</span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+            <span className="text-slate-500">Awaiting approval</span><span className="text-right font-mono font-bold text-amber-300">{automation.awaitingApproval}</span>
+            <span className="text-slate-500">Succeeded</span><span className="text-right font-mono font-bold text-emerald-300">{automation.succeededJobs}</span>
+            <span className="text-slate-500">Failed</span><span className="text-right font-mono font-bold text-slate-300">{automation.failedJobs}</span>
+            <span className="text-slate-500">Products queued</span><span className="text-right font-mono font-bold text-[#dff54a]">{pipeline.pending}</span>
+            <span className="text-slate-500">Products live</span><span className="text-right font-mono font-bold text-emerald-300">{pipeline.published}</span>
+          </div>
+          <p className="mt-2 border-t border-slate-800 pt-1.5 text-[8px] text-slate-600">Live · refreshes every 60s</p>
+        </div>
+
         {/* systems health */}
         <div className="absolute bottom-4 left-4 rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
           <div className="flex items-center justify-between gap-6">
