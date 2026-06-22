@@ -101,6 +101,20 @@ export default function World() {
 
   const connected = connectors.filter((c) => c.status === "ready").length;
   const readiness = Math.round((connected / connectors.length) * 100);
+
+  // Operator intelligence: from live state, surface the single highest-leverage
+  // thing the OPERATOR should do right now (the rest is for the agents).
+  const operatorFocus = useMemo(() => {
+    if (!automation.authenticated) return { tag: "Sign in", text: "Sign in to bring the world online and see your live intelligence.", tone: "amber" as const };
+    if (!automation.enabled) return { tag: "Re-arm", text: "Autopilot is off — the producers are paused. Arm it to resume autonomous production.", tone: "amber" as const };
+    if (automation.paused) return { tag: "Resume", text: "Autopilot is paused. Resume to let the agents keep working.", tone: "amber" as const };
+    if (automation.awaitingApproval > 0) return { tag: `Approve ${automation.awaitingApproval}`, text: `${automation.awaitingApproval} agent-prepared item${automation.awaitingApproval > 1 ? "s" : ""} await your approval (sends, supplier orders, ad spend).`, tone: "lime" as const };
+    if (revenue.netRevenueCents === 0 && pipeline.published > 0) return { tag: "First sale", text: `${pipeline.published} product${pipeline.published > 1 ? "s are" : " is"} live with $0 sales — approve a small TikTok ad test to drive your first dollar.`, tone: "lime" as const };
+    if (revenue.netRevenueCents > 0) return { tag: "Scale", text: `$${(revenue.netRevenueCents / 100).toFixed(0)} in real revenue. Reinvest into the winners; cut what doesn't convert.`, tone: "emerald" as const };
+    return { tag: "Operating", text: brief.route || "Agents are producing. Nothing needs you right now.", tone: "slate" as const };
+  }, [automation, revenue.netRevenueCents, pipeline.published, brief.route]);
+  const focusTone: Record<string, string> = { amber: "border-amber-500/40 bg-amber-500/[0.07] text-amber-300", lime: "border-[#dff54a]/40 bg-[#dff54a]/[0.07] text-[#dff54a]", emerald: "border-emerald-500/40 bg-emerald-500/[0.07] text-emerald-300", slate: "border-slate-700 bg-slate-900/50 text-slate-300" };
+
   const selected = PLACES.find((p) => p.id === selectedId) ?? null;
   const routeFor = (name: string) => brief.agentRoutes.find((r) => r.agent.toLowerCase() === name.toLowerCase());
 
@@ -175,71 +189,31 @@ export default function World() {
           );
         })}
 
-        {/* Hermes brief floating under the core */}
-        <div className="absolute left-1/2 top-[63%] w-[300px] -translate-x-1/2 rounded-xl border border-slate-800 bg-[#0d1219]/90 p-3 text-center backdrop-blur">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{hermesLive ? "Hermes-4 brief" : "Heuristic brief"}</p>
-          <p className="mt-1 text-xs font-semibold text-slate-100">{brief.mood}</p>
-          <p className="mt-1 text-[10px] leading-relaxed text-slate-400"><span className="text-amber-300">{brief.bottleneck}</span> — {brief.route}</p>
-        </div>
-
-        {/* live automation / ops health — reflects real state, auto-refreshed every 60s */}
-        <div className="absolute left-4 top-4 w-[210px] rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
+        {/* OPERATOR INTELLIGENCE COCKPIT — the few things that matter to YOU, derived
+            from live state by Hermes. Agent telemetry (automation counters, systems
+            health, product pipeline) is intentionally not surfaced here — it is the
+            agents' working data, read from the database, not operator clutter. */}
+        <div className="absolute left-1/2 top-[60%] w-[360px] -translate-x-1/2 rounded-2xl border border-slate-800 bg-[#0d1219]/92 p-4 backdrop-blur">
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">
-              <span className={`h-1.5 w-1.5 rounded-full ${automation.enabled && !automation.paused ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />Automation
+              <span className={`h-1.5 w-1.5 rounded-full ${thinking ? "bg-[#dff54a] animate-pulse" : hermesLive ? "bg-emerald-400" : "bg-slate-500"}`} />
+              {thinking ? "Hermes is reading the world…" : hermesLive ? "Hermes-4 intelligence" : "Intelligence (heuristic)"}
             </p>
-            <span className="text-[9px] font-bold text-slate-400">{automation.enabled ? (automation.paused ? "paused" : "armed") : "idle"}</span>
+            <span className="font-mono text-[9px] font-bold text-[#dff54a]">IQ {brief.intelligenceScore}</span>
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
-            <span className="text-slate-500">Awaiting approval</span><span className="text-right font-mono font-bold text-amber-300">{automation.awaitingApproval}</span>
-            <span className="text-slate-500">Succeeded</span><span className="text-right font-mono font-bold text-emerald-300">{automation.succeededJobs}</span>
-            <span className="text-slate-500">Failed</span><span className="text-right font-mono font-bold text-slate-300">{automation.failedJobs}</span>
-            <span className="text-slate-500">Products queued</span><span className="text-right font-mono font-bold text-[#dff54a]">{pipeline.pending}</span>
-            <span className="text-slate-500">Products live</span><span className="text-right font-mono font-bold text-emerald-300">{pipeline.published}</span>
-          </div>
-          <p className="mt-2 border-t border-slate-800 pt-1.5 text-[8px] text-slate-600">Live · refreshes every 60s</p>
-        </div>
+          <p className="mt-2 text-sm font-bold text-slate-100">{brief.mood}</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-slate-400"><span className="text-amber-300/90">{brief.bottleneck}</span></p>
 
-        {/* systems health */}
-        <div className="absolute bottom-4 left-4 rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
-          <div className="flex items-center justify-between gap-6">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Systems</p>
-            <p className="text-[9px] font-bold text-slate-400">{systems.filter((s) => s.ok).length}/{systems.length || 5} green</p>
+          {/* the single highest-leverage move for the operator */}
+          <div className={`mt-3 rounded-xl border p-2.5 ${focusTone[operatorFocus.tone]}`}>
+            <p className="text-[8px] font-bold uppercase tracking-[0.12em] opacity-80">Your move → {operatorFocus.tag}</p>
+            <p className="mt-1 text-[11px] font-semibold leading-snug text-slate-100">{operatorFocus.text}</p>
           </div>
-          <div className="mt-2 space-y-1">
-            {systems.map((s) => (
-              <div key={s.id} className="flex items-center gap-2" title={s.detail}>
-                <span className={`h-1.5 w-1.5 rounded-full ${s.ok ? "bg-emerald-400" : "bg-amber-400"}`} />
-                <span className="text-[10px] text-slate-300">{s.name}</span>
-              </div>
-            ))}
-            {systems.length === 0 && <span className="text-[10px] text-slate-500">Probing…</span>}
-          </div>
-        </div>
 
-        {/* Collective memory stays the agents' private brain (agent_knowledge bus) —
-            not surfaced here. */}
-
-        {/* Product pipeline — the autonomous engine working: validated → queued → live */}
-        <div className="absolute bottom-4 right-4 w-[280px] rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
-          <div className="flex items-center justify-between gap-2">
-            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500"><Boxes size={11} />Product pipeline</p>
-            <p className="text-[9px] font-bold text-slate-400">{pipeline.pending} queued · {pipeline.published} live</p>
-          </div>
-          <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-            {pipeline.recent.length === 0 && <span className="text-[10px] text-slate-500">No products yet — Cyrus is sourcing.</span>}
-            {pipeline.recent.slice(0, 6).map((d) => (
-              <div key={d.id} className="flex items-center gap-2" title={d.title}>
-                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${d.published ? "bg-emerald-400" : "bg-[#dff54a]"}`} />
-                <span className="truncate text-[10px] text-slate-300">{d.title}</span>
-                <span className="ml-auto shrink-0 text-[9px] text-slate-500">${d.priceUsd}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 flex items-center gap-3 border-t border-slate-800 pt-2 text-[8px] uppercase tracking-wider">
-            <span className="flex items-center gap-1 text-[#dff54a]"><span className="h-1.5 w-1.5 rounded-full bg-[#dff54a]" />Producer</span>
-            <span className="flex items-center gap-1 text-sky-300"><span className="h-1.5 w-1.5 rounded-full bg-sky-400" />Enabler</span>
-            <span className="ml-auto text-slate-500">{pipeline.published} live</span>
+          <div className="mt-3 flex items-center justify-between border-t border-slate-800 pt-2 text-[9px] text-slate-500">
+            <span>Real revenue <span className="font-mono font-bold text-emerald-300">${(revenue.netRevenueCents / 100).toFixed(0)}</span></span>
+            <span>World readiness <span className="font-mono font-bold text-slate-300">{readiness}%</span></span>
+            <span className="text-slate-600">live · 60s</span>
           </div>
         </div>
       </div>
