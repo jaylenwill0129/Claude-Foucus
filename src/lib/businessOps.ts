@@ -89,7 +89,7 @@ const definitions: Record<ConnectorId, Omit<Connector, "status" | "detail">> = {
     name: "Google Drive fulfillment",
     purpose: "Deliver paid digital products and store fulfillment evidence",
     mcpManaged: true,
-    readyDetail: "Connected via the Google Drive MCP. Dev delivers paid orders to the 'Fufilment' folder and records the file link + timestamp as proof; the Order Router queues supplier orders for approval.",
+    readyDetail: "Connected via the Google Drive MCP. Paid digital orders are delivered to the 'Fufilment' folder with the file link + timestamp stored as proof; the Order Router queues supplier orders for approval.",
     nextStep: "Connected. Approve queued supplier orders to ship; Dev delivers digital goods via Google Drive.",
   },
 };

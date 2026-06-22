@@ -97,13 +97,13 @@ export const agentPlaybooks: Record<string, AgentPlaybook> = {
   },
   delivery: {
     loop: [
-      { phase: "Receive approved order", action: "Pick up a paid/approved order for fulfillment.", autonomy: "autonomous" },
-      { phase: "QC", action: "Verify the deliverable is correct, complete, and accessible before sending.", autonomy: "autonomous" },
-      { phase: "Store in Google Drive", action: "Place the deliverable (PDF/bundle) in the Drive 'Fufilment' folder, organized per order, and prepare the buyer's access link.", autonomy: "autonomous" },
-      { phase: "Record proof", action: "Save the Drive file id + view link + timestamp as delivery evidence on the order record.", autonomy: "autonomous" },
-      { phase: "Grant access", action: "Change file sharing / access permissions — held for operator approval, never autonomous.", autonomy: "approval_gated" },
+      { phase: "Brief", action: "Take the winning product + angle from Cyrus and the target buyer from Maya; define the ad objective and offer.", autonomy: "autonomous" },
+      { phase: "Make creative", action: "Write hook-first scripts (pattern-interrupt in the first 1-3s) + on-screen text and generate ≥3 UGC-style ad video/image variants per product.", autonomy: "autonomous" },
+      { phase: "Campaign plan", action: "Structure a TikTok Ads Manager plan: conversions/Spark Ads objective, broad + interest audiences, low test budget per ad group, creative-rotation + cut/scale rules.", autonomy: "autonomous" },
+      { phase: "Post + launch", action: "Post the ad to the live account and fund/launch the campaign (any ad spend) — held for operator approval, never autonomous.", autonomy: "approval_gated" },
+      { phase: "Optimize", action: "On real data, read 3s-retention / CTR / CPA / ROAS; cut losers, recommend budget bumps on ROAS-positive ad sets, refresh creative before fatigue.", autonomy: "autonomous" },
     ],
-    cadence: "Fires on each paid order; SLA-driven. Delivers digital goods via the connected Google Drive.",
-    guardrails: ["QC pass before any delivery.", "Every delivery has a stored Drive link as evidence.", "Never modify file sharing/access controls autonomously — operator-gated.", "Protect margin; flag unprofitable fulfillment."],
+    cadence: "Continuous: builds and tests ad creative on the loop; posting and ad spend are deliberate gated steps.",
+    guardrails: ["Posting to a live account and ALL ad spend are operator-gated (public posting + money).", "Native, hook-first, TikTok-ToS-compliant; truthful, no misleading or restricted-product claims.", "Optimize ROAS/CPA; never fabricate ad metrics, spend, or results."],
   },
 };
