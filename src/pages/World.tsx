@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BrainCircuit, Music2, Search, Mail, ShoppingBag, PackageCheck, WalletCards,
-  RadioTower, RefreshCw, Power, LogIn, X, Check, Sparkles, Send, MapPin, Store,
+  RadioTower, RefreshCw, Power, LogIn, X, Check, Sparkles, Send, MapPin, Store, Megaphone, Boxes,
 } from "lucide-react";
 import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
   loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects,
-  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect, loadTreasury, runAgent,
+  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect, loadTreasury, runAgent, loadProductPipeline,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
-  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type DomainCheck, type Treasury, type AgentRunResult,
+  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type DomainCheck, type Treasury, type AgentRunResult, type ProductDraft,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
@@ -31,14 +31,25 @@ type Place = {
   y: number;
 };
 
+// PRODUCER vs ENABLER world taxonomy (mirrors the orchestrator). Producers create
+// the sellable / revenue output; enablers keep the world running and assist them.
+const ENABLER_IDS = new Set(["research", "finance"]);
+const roleClass = (id: string): "producer" | "enabler" | "ops" =>
+  id === "hermes" || id === "relay" ? "ops" : ENABLER_IDS.has(id) ? "enabler" : "producer";
+const ROLE_STYLE: Record<string, { label: string; cls: string }> = {
+  producer: { label: "Producer", cls: "border-[#dff54a]/40 bg-[#dff54a]/10 text-[#dff54a]" },
+  enabler: { label: "Enabler", cls: "border-sky-500/40 bg-sky-500/10 text-sky-300" },
+  ops: { label: "Ops", cls: "border-slate-500/40 bg-slate-500/10 text-slate-300" },
+};
+
 const PLACES: Place[] = [
   { id: "hermes", name: "Hermes", place: "Intelligence Atrium", role: "World intelligence", objective: "Read the world, name the bottleneck, route every agent.", icon: BrainCircuit, kind: "core", x: 50, y: 47 },
-  { id: "creative", name: "Aria", place: "Signal Studio", role: "Creative Director & DJ", objective: "Turn live trends into approval-ready release packages.", icon: Music2, kind: "agent", x: 25, y: 19 },
+  { id: "creative", name: "Aria", place: "Signal Studio", role: "Creative & Content", objective: "Turn live trends into approval-ready organic content packages.", icon: Music2, kind: "agent", x: 25, y: 19 },
   { id: "research", name: "Maya", place: "Prospect Observatory", role: "Research", objective: "Find businesses with an expensive, measurable problem.", icon: Search, connector: "crm", kind: "agent", x: 50, y: 12 },
   { id: "sales", name: "Marcus", place: "Outbound Office", role: "Sales", objective: "Turn qualified prospects into booked calls and offers.", icon: Mail, connector: "outreach", kind: "agent", x: 76, y: 20 },
   { id: "product", name: "Lena", place: "Storefront Studio", role: "Product", objective: "Create and publish offers people can buy now.", icon: ShoppingBag, connector: "storefront", kind: "agent", x: 88, y: 40 },
   { id: "commerce", name: "Cyrus", place: "Commerce Floor", role: "Dropshipping Commerce", objective: "Build a branded dropshipping winner with fast fulfillment and unit economics that work.", icon: Store, connector: "storefront", kind: "agent", x: 90, y: 66 },
-  { id: "delivery", name: "Dev", place: "Delivery Workshop", role: "Fulfillment", objective: "Complete paid work and preserve margin.", icon: PackageCheck, connector: "fulfillment", kind: "agent", x: 71, y: 84 },
+  { id: "delivery", name: "Dev", place: "Ad Studio", role: "TikTok Ads", objective: "Make, run, and post profitable hook-first TikTok ad campaigns for the store's winners.", icon: Megaphone, kind: "agent", x: 71, y: 84 },
   { id: "finance", name: "Ledger", place: "Revenue Vault", role: "Finance", objective: "Reconcile every dollar; reject unverified revenue.", icon: WalletCards, connector: "payments", kind: "agent", x: 30, y: 84 },
   { id: "relay", name: "Relay", place: "Operator Relay", role: "Operator channel", objective: "Email Hermes's briefs and approval requests to the operator.", icon: RadioTower, kind: "relay", x: 13, y: 51 },
 ];
@@ -56,6 +67,7 @@ export default function World() {
   const [systems, setSystems] = useState<SystemHealth[]>([]);
   const [history, setHistory] = useState<HermesHistoryEntry[]>([]);
   const [relay, setRelay] = useState<RelayStatus>({ connected: false, channel: "email", detail: "Probing relay…" });
+  const [pipeline, setPipeline] = useState<{ pending: number; published: number; recent: ProductDraft[] }>({ pending: 0, published: 0, recent: [] });
 
   const connectorMap = useMemo(() => Object.fromEntries(connectors.map((c) => [c.id, c])), [connectors]);
   const fallback = useMemo(() => computeFallbackBrief(connectors, revenue, automation), [connectors, revenue, automation]);
@@ -78,6 +90,7 @@ export default function World() {
     setSystems(await loadSystemsHealth());
     setHistory(await loadHermesHistory());
     setRelay(await probeOperatorRelay());
+    setPipeline(await loadProductPipeline());
   }, []);
 
   useEffect(() => {
@@ -154,6 +167,9 @@ export default function World() {
               <div className="mt-2 text-center">
                 <p className={`text-xs font-bold ${p.kind === "core" ? "text-[#dff54a]" : "text-slate-100"}`}>{p.name}</p>
                 <p className="text-[9px] uppercase tracking-wider text-slate-500">{p.place}</p>
+                {p.kind === "agent" && (
+                  <span className={`mt-1 inline-block rounded-full border px-1.5 py-px text-[8px] font-bold uppercase tracking-wider ${ROLE_STYLE[roleClass(p.id)].cls}`}>{ROLE_STYLE[roleClass(p.id)].label}</span>
+                )}
               </div>
             </button>
           );
@@ -183,11 +199,31 @@ export default function World() {
           </div>
         </div>
 
-        {/* Collective memory is intentionally not shown here — it is the agents'
-            private, always-on brain (the agent_knowledge bus). It keeps running in
-            the background: every run writes back a learning, reinforcement compounds
-            what works, and confidence decay prunes what doesn't, so the team keeps
-            improving without the operator needing to watch it. */}
+        {/* Collective memory stays the agents' private brain (agent_knowledge bus) —
+            not surfaced here. */}
+
+        {/* Product pipeline — the autonomous engine working: validated → queued → live */}
+        <div className="absolute bottom-4 right-4 w-[280px] rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500"><Boxes size={11} />Product pipeline</p>
+            <p className="text-[9px] font-bold text-slate-400">{pipeline.pending} queued · {pipeline.published} live</p>
+          </div>
+          <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+            {pipeline.recent.length === 0 && <span className="text-[10px] text-slate-500">No products yet — Cyrus is sourcing.</span>}
+            {pipeline.recent.slice(0, 6).map((d) => (
+              <div key={d.id} className="flex items-center gap-2" title={d.title}>
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${d.published ? "bg-emerald-400" : "bg-[#dff54a]"}`} />
+                <span className="truncate text-[10px] text-slate-300">{d.title}</span>
+                <span className="ml-auto shrink-0 text-[9px] text-slate-500">${d.priceUsd}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center gap-3 border-t border-slate-800 pt-2 text-[8px] uppercase tracking-wider">
+            <span className="flex items-center gap-1 text-[#dff54a]"><span className="h-1.5 w-1.5 rounded-full bg-[#dff54a]" />Producer</span>
+            <span className="flex items-center gap-1 text-sky-300"><span className="h-1.5 w-1.5 rounded-full bg-sky-400" />Enabler</span>
+            <span className="ml-auto text-slate-500">{pipeline.published} live</span>
+          </div>
+        </div>
       </div>
 
       {/* DRAWER */}
@@ -232,7 +268,13 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className={`grid h-11 w-11 place-items-center rounded-xl ${place.kind === "core" ? "bg-[#dff54a] text-[#0a0e14]" : "bg-slate-800 text-slate-100"}`}><Icon size={20} /></div>
-          <div><p className="text-sm font-bold">{place.name}</p><p className="text-[11px] text-slate-400">{place.role}</p></div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-bold">{place.name}</p>
+              {place.kind === "agent" && <span className={`rounded-full border px-1.5 py-px text-[8px] font-bold uppercase tracking-wider ${ROLE_STYLE[roleClass(place.id)].cls}`}>{ROLE_STYLE[roleClass(place.id)].label}</span>}
+            </div>
+            <p className="text-[11px] text-slate-400">{place.role}</p>
+          </div>
         </div>
         <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-700 hover:bg-slate-800"><X size={14} /></button>
       </div>
@@ -269,7 +311,6 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
       {benchmark && <AgentRunPanel placeId={place.id} agentName={place.name} authed={authed} />}
       {place.id === "creative" && <CreativePanel authed={authed} />}
       {place.id === "commerce" && <DomainPanel />}
-      {place.id === "delivery" && <DrivePanel authed={authed} />}
       {place.id === "finance" && <TreasuryPanel authed={authed} />}
       {place.id === "research" && <ProspectsPanel authed={authed} />}
       {place.connector && <JobsPanel agentName={place.name} authed={authed} />}
@@ -318,7 +359,7 @@ const RUN_OBJECTIVES: Record<string, string> = {
   commerce: "Find a viral product, validate it against the best-rated competitor, and draft the Shopify listing + ad test plan.",
   creative: "Design a release-ready short-form package (1-3s hook, caption, hashtags) for a trending sound.",
   finance: "Summarize real revenue, margins, fees, and what's available to withdraw.",
-  delivery: "Define the fulfillment SOP + QC checklist for our current products.",
+  delivery: "Make a TikTok ad set for our top product: 3 hook-first UGC script variants + a campaign + test-budget plan (posting/spend stays gated).",
 };
 
 function AgentRunPanel({ placeId, agentName, authed }: { placeId: string; agentName: string; authed: boolean }) {

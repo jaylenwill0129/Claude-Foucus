@@ -60,13 +60,13 @@ export const agentBenchmarks: Record<string, AgentBenchmark> = {
     beat: "100% revenue receipt-backed; fee leakage flagged; zero unverified revenue",
   },
   delivery: {
-    field: "Fulfillment / delivery",
+    field: "TikTok paid ads (direct-response)",
     top: [
-      "Hit the SLA every time; QC before anything ships or is marked delivered.",
-      "Store fulfillment evidence so every delivery is provable.",
-      "Protect margin; flag work that costs more to deliver than it earns.",
+      "Win the first 1-3s with a native, pattern-interrupt hook — 3s retention drives cheap reach and ROAS.",
+      "Ship ≥3 UGC-style hook variants per product as Spark Ads; native beats polished; test before you scale.",
+      "Test cheap, kill losers fast, scale ONLY ROAS-positive ad sets; optimize for CPA/ROAS, not vanity views.",
     ],
-    beat: "On-time delivery; QC pass before delivery; every delivery has evidence",
+    beat: "3s hook retention; ≥3 hook variants/product; test at low budget; scale only ROAS ≥ ~1.8x ad sets",
   },
 };
 

@@ -465,6 +465,27 @@ export const findBrandDomains = async (seed: string): Promise<DomainCheck | { er
   }
 };
 
+// Cyrus's product publish pipeline. Reads the token-free product_drafts queue so
+// the world can show the autonomous engine working (validated → queued → published).
+export type ProductDraft = { id: string; title: string; status: string; priceUsd: number; createdAt: string; published: boolean };
+export const loadProductPipeline = async (): Promise<{ pending: number; published: number; recent: ProductDraft[] }> => {
+  try {
+    const { data } = await supabase
+      .from("product_drafts")
+      .select("id,title,status,price_usd,created_at,shopify_product_id")
+      .order("created_at", { ascending: false })
+      .limit(24);
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const recent = rows.map((r) => ({
+      id: String(r.id), title: String(r.title ?? ""), status: String(r.status ?? ""),
+      priceUsd: Number(r.price_usd) || 0, createdAt: String(r.created_at ?? ""), published: r.status === "published",
+    }));
+    return { pending: recent.filter((r) => r.status === "pending_publish").length, published: recent.filter((r) => r.published).length, recent };
+  } catch {
+    return { pending: 0, published: 0, recent: [] };
+  }
+};
+
 // Dev's Google Drive fulfillment connection. GET reports provider + per-user
 // state; POST returns a Google consent URL for the operator to authorize (the
 // OAuth grant is the operator's own click, never automated).
