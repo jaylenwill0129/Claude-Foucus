@@ -486,6 +486,25 @@ export const loadProductPipeline = async (): Promise<{ pending: number; publishe
   }
 };
 
+// Maya's latent-demand "painkiller" opportunities (real complaints -> product ideas).
+export type DemandSignal = { id: string; pain: string; productIdea: string; acuteness: number; buildAgent: string; productType: string; source: string; status: string };
+export const loadDemandSignals = async (): Promise<DemandSignal[]> => {
+  try {
+    const { data } = await supabase
+      .from("demand_signals")
+      .select("id,pain,product_idea,acuteness,build_agent,product_type,source,status")
+      .order("acuteness", { ascending: false })
+      .limit(12);
+    return (data ?? []).map((r: Record<string, unknown>) => ({
+      id: String(r.id), pain: String(r.pain ?? ""), productIdea: String(r.product_idea ?? ""),
+      acuteness: Number(r.acuteness) || 0, buildAgent: String(r.build_agent ?? ""),
+      productType: String(r.product_type ?? ""), source: String(r.source ?? ""), status: String(r.status ?? ""),
+    }));
+  } catch {
+    return [];
+  }
+};
+
 // Dev's Google Drive fulfillment connection. GET reports provider + per-user
 // state; POST returns a Google consent URL for the operator to authorize (the
 // OAuth grant is the operator's own click, never automated).

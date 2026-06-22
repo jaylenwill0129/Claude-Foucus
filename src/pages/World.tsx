@@ -7,9 +7,9 @@ import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
   loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects,
-  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect, loadTreasury, runAgent, loadProductPipeline,
+  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect, loadTreasury, runAgent, loadProductPipeline, loadDemandSignals,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
-  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type DomainCheck, type Treasury, type AgentRunResult, type ProductDraft,
+  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type DomainCheck, type Treasury, type AgentRunResult, type ProductDraft, type DemandSignal,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
@@ -330,6 +330,7 @@ function AgentDrawer({ place, ready, connector, brief, relay, relayMsg, history,
       {place.id === "creative" && <CreativePanel authed={authed} />}
       {place.id === "commerce" && <DomainPanel />}
       {place.id === "finance" && <TreasuryPanel authed={authed} />}
+      {place.id === "research" && <OpportunitiesPanel authed={authed} />}
       {place.id === "research" && <ProspectsPanel authed={authed} />}
       {place.connector && <JobsPanel agentName={place.name} authed={authed} />}
       {place.id === "hermes" && (
@@ -585,6 +586,30 @@ function CreativePanel({ authed }: { authed: boolean }) {
                 <button onClick={() => decide(p.id, "approved")} disabled={deciding === p.id} className="flex h-7 items-center gap-1 rounded-lg bg-[#dff54a] px-2 text-[10px] font-bold text-[#0a0e14] disabled:opacity-40">{deciding === p.id ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} />}Approve</button>
               </div>
             )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OpportunitiesPanel({ authed }: { authed: boolean }) {
+  const [signals, setSignals] = useState<DemandSignal[]>([]);
+  useEffect(() => { loadDemandSignals().then(setSignals); }, []);
+  return (
+    <div className="mt-5">
+      <div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Latent-demand opportunities</p><span className="text-[9px] font-bold text-slate-400">{signals.length}</span></div>
+      {!authed && <p className="mt-2 text-[10px] text-slate-500">Sign in to see Maya's surfaced product ideas.</p>}
+      {authed && signals.length === 0 && <p className="mt-2 text-[10px] text-slate-500">No opportunities yet. Maya mines real complaints daily into validated product ideas.</p>}
+      <div className="mt-3 space-y-2">
+        {signals.map((s) => (
+          <div key={s.id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-bold text-slate-100">{s.productIdea}</p>
+              <span className="shrink-0 rounded bg-[#dff54a]/15 px-1.5 py-0.5 text-[8px] font-bold text-[#dff54a]">{s.acuteness}★</span>
+            </div>
+            <p className="mt-1 text-[10px] leading-relaxed text-slate-400">Pain: {s.pain}</p>
+            <p className="mt-1 text-[9px] text-slate-500">{s.buildAgent === "product" ? "Lena" : "Cyrus"} builds · {s.productType} · {s.source}{s.status !== "new" ? ` · ${s.status}` : ""}</p>
           </div>
         ))}
       </div>
