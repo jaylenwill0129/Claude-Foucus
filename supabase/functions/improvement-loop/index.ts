@@ -11,7 +11,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-automation-secret" };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 const NOUS_BASE = (Deno.env.get("NOUS_API_BASE_URL")?.replace(/\/$/, "")) ?? "https://inference-api.nousresearch.com/v1";
-const MODEL = Deno.env.get("HERMES_MODEL") ?? "nousresearch/hermes-4-70b";
+function cleanModel(v: string | undefined) {
+  let m = String(v || "").trim();
+  if (!m) return "nousresearch/hermes-4-70b";
+  // Repair a value accidentally saved with a filesystem path prefix.
+  if (m.includes("/Users/") || m.startsWith("/") || m.split("/").length > 2) { const p = m.split("/").filter(Boolean); m = p.slice(-2).join("/"); }
+  return m || "nousresearch/hermes-4-70b";
+}
+const MODEL = cleanModel(Deno.env.get("HERMES_MODEL"));
 
 async function hermes(system: string, user: string) {
   const key = Deno.env.get("NOUS_API_KEY");
