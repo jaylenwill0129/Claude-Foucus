@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BrainCircuit, Music2, Search, Mail, ShoppingBag, PackageCheck, WalletCards,
-  RadioTower, RefreshCw, Power, LogIn, X, Check, Sparkles, Send, MapPin, Store, Megaphone, Boxes,
+  RadioTower, RefreshCw, Power, LogIn, X, Check, Sparkles, Send, MapPin, Store, Megaphone, Play, ShieldCheck,
 } from "lucide-react";
 import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
@@ -68,6 +68,8 @@ export default function World() {
   const [history, setHistory] = useState<HermesHistoryEntry[]>([]);
   const [relay, setRelay] = useState<RelayStatus>({ connected: false, channel: "email", detail: "Probing relay…" });
   const [pipeline, setPipeline] = useState<{ pending: number; published: number; recent: ProductDraft[] }>({ pending: 0, published: 0, recent: [] });
+  const [showApprovals, setShowApprovals] = useState(false);
+  const [cycle, setCycle] = useState<string | null>(null);
 
   const connectorMap = useMemo(() => Object.fromEntries(connectors.map((c) => [c.id, c])), [connectors]);
   const fallback = useMemo(() => computeFallbackBrief(connectors, revenue, automation), [connectors, revenue, automation]);
@@ -123,6 +125,19 @@ export default function World() {
     setRelayMsg(r.message);
     await refresh();
   };
+  // Run a full producer cycle on demand: each producer agent runs its objective via
+  // the super-brain, then the world refreshes. Sequential so we can show progress.
+  const runCycle = async () => {
+    if (cycle) return;
+    const producers: Array<[string, string]> = [["commerce", "Cyrus"], ["product", "Lena"], ["creative", "Aria"], ["delivery", "Dev"]];
+    for (const [id, name] of producers) {
+      setCycle(`Running ${name}…`);
+      try { await runAgent(id, RUN_OBJECTIVES[id] ?? "Advance your highest-leverage task now."); } catch { /* keep going */ }
+    }
+    setCycle("Cycle complete ✓");
+    await refresh();
+    window.setTimeout(() => setCycle(null), 4000);
+  };
   const relayBrief = async () => {
     const r = await relayToOperator({ kind: "hermes_brief", title: `Hermes: ${brief.mood}`, body: `Bottleneck: ${brief.bottleneck}. ${brief.route}`, meta: { iq: brief.intelligenceScore } });
     setRelayMsg(r.message);
@@ -149,6 +164,7 @@ export default function World() {
           <Hud label="Readiness" value={`${readiness}%`} />
           <Hud label="Hermes IQ" value={`${brief.intelligenceScore}`} accent />
           <button onClick={refresh} disabled={refreshing} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[11px] font-semibold hover:bg-slate-800 disabled:opacity-50"><RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />Probe</button>
+          <button onClick={runCycle} disabled={!!cycle || !user} title="Run every producer agent once" className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[11px] font-semibold hover:bg-slate-800 disabled:opacity-50"><Play size={13} className={cycle ? "animate-pulse text-[#dff54a]" : ""} />{cycle ?? "Run cycle"}</button>
           <button onClick={toggleAutopilot} disabled={!automation.authenticated} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold disabled:opacity-40 ${automation.enabled ? "bg-[#dff54a] text-[#0a0e14]" : "border border-slate-700 bg-slate-900/60"}`}><Power size={13} />{automation.enabled ? "Armed" : "Autopilot"}</button>
           {user ? <button onClick={signOut} className="text-[10px] font-bold text-slate-400 hover:text-slate-100">Sign out</button> : <Link to="/auth" className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-slate-100"><LogIn size={12} />Sign in</Link>}
           <Link to="/console" className="text-[10px] font-bold text-slate-500 hover:text-slate-300">Console ↗</Link>
@@ -208,6 +224,20 @@ export default function World() {
           <div className={`mt-3 rounded-xl border p-2.5 ${focusTone[operatorFocus.tone]}`}>
             <p className="text-[8px] font-bold uppercase tracking-[0.12em] opacity-80">Your move → {operatorFocus.tag}</p>
             <p className="mt-1 text-[11px] font-semibold leading-snug text-slate-100">{operatorFocus.text}</p>
+            <div className="mt-2">
+              {operatorFocus.tag.startsWith("Approve") && (
+                <button onClick={() => setShowApprovals(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-1.5 text-[10px] font-bold text-[#0a0e14] hover:brightness-110"><ShieldCheck size={12} />Review &amp; approve</button>
+              )}
+              {(operatorFocus.tag === "Re-arm" || operatorFocus.tag === "Resume") && (
+                <button onClick={toggleAutopilot} disabled={!automation.authenticated} className="inline-flex items-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-1.5 text-[10px] font-bold text-[#0a0e14] hover:brightness-110 disabled:opacity-40"><Power size={12} />Arm autopilot</button>
+              )}
+              {operatorFocus.tag === "Sign in" && (
+                <Link to="/auth" className="inline-flex items-center gap-1.5 rounded-lg bg-[#dff54a] px-3 py-1.5 text-[10px] font-bold text-[#0a0e14] hover:brightness-110"><LogIn size={12} />Sign in</Link>
+              )}
+              {(operatorFocus.tag === "First sale" || operatorFocus.tag === "Scale") && (
+                <button onClick={runCycle} disabled={!!cycle} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-600 px-3 py-1.5 text-[10px] font-bold text-slate-200 hover:bg-slate-800"><Play size={12} />{cycle ?? "Run a producer cycle"}</button>
+              )}
+            </div>
           </div>
 
           <div className="mt-3 flex items-center justify-between border-t border-slate-800 pt-2 text-[9px] text-slate-500">
@@ -233,7 +263,51 @@ export default function World() {
           authed={Boolean(user)}
         />
       )}
+
+      {showApprovals && <ApprovalsOverlay authed={Boolean(user)} onClose={() => { setShowApprovals(false); refresh(); }} />}
     </main>
+  );
+}
+
+// Centralized approval review: every agent-prepared action awaiting the operator
+// (sends, supplier orders, ad spend, etc.) in one place, approve/reject per item.
+// Approving is the operator's deliberate, money-/send-gated decision.
+function ApprovalsOverlay({ authed, onClose }: { authed: boolean; onClose: () => void }) {
+  const [jobs, setJobs] = useState<AutomationJob[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const reload = useCallback(async () => { setLoading(true); const all = await loadAutomationJobs(50); setJobs(all.filter((j) => j.status === "awaiting_approval")); setLoading(false); }, []);
+  useEffect(() => { reload(); }, [reload]);
+  const decide = async (id: string, decision: "approved" | "rejected") => { setBusy(id); await decideAutomationJob(id, decision); await reload(); setBusy(null); };
+  return (
+    <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/60 p-6 backdrop-blur-sm" onClick={onClose}>
+      <div className="mt-12 w-full max-w-lg rounded-2xl border border-slate-800 bg-[#0c1118] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2"><ShieldCheck size={16} className="text-[#dff54a]" /><p className="text-sm font-bold">Approvals — {jobs.length} awaiting you</p></div>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-700 hover:bg-slate-800"><X size={14} /></button>
+        </div>
+        <p className="mt-1 text-[10px] text-slate-500">These are agent-prepared actions that move money or go out publicly — approve only what you want to happen.</p>
+        {!authed && <p className="mt-4 text-[11px] text-slate-400">Sign in to review and approve.</p>}
+        {authed && loading && <p className="mt-4 text-[11px] text-slate-400">Loading…</p>}
+        {authed && !loading && jobs.length === 0 && <p className="mt-4 text-[11px] text-slate-400">Nothing awaiting approval. The agents are clear to keep working. ✓</p>}
+        <div className="mt-3 max-h-[60vh] space-y-2 overflow-y-auto">
+          {jobs.map((j) => (
+            <div key={j.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-bold text-slate-100">{j.agent} · {j.actionType.replaceAll("_", " ")}</p>
+                <span className={`rounded px-1.5 py-0.5 text-[8px] font-bold uppercase ${j.riskLevel === "high" ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300"}`}>{j.riskLevel} risk</span>
+              </div>
+              {(j.directive || j.note) && <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{j.directive || j.note}</p>}
+              <div className="mt-2 flex items-center gap-2">
+                <button onClick={() => decide(j.id, "approved")} disabled={busy === j.id} className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/90 px-2.5 py-1 text-[10px] font-bold text-[#0a0e14] hover:bg-emerald-400 disabled:opacity-40"><Check size={11} />Approve</button>
+                <button onClick={() => decide(j.id, "rejected")} disabled={busy === j.id} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-slate-800 disabled:opacity-40"><X size={11} />Reject</button>
+                {busy === j.id && <span className="text-[9px] text-slate-500">working…</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
