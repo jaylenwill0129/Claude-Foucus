@@ -7,9 +7,9 @@ import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
   setAutomationEnabled, loadHermesBrief, runCreativeCycle, loadCreativePackages, decideCreativePackage,
   loadAutomationJobs, decideAutomationJob, loadSystemsHealth, loadHermesHistory, loadProspects,
-  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect, loadTreasury, runAgent, loadProductPipeline, loadDemandSignals,
+  findBrandDomains, loadGoogleDriveStatus, startGoogleDriveConnect, loadTreasury, runAgent, loadProductPipeline, loadDemandSignals, loadActivity,
   type AutomationSummary, type RevenueSummary, type HermesIntelligence, type CreativePackageRecord, type AutomationJob,
-  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type DomainCheck, type Treasury, type AgentRunResult, type ProductDraft, type DemandSignal,
+  type SystemHealth, type HermesHistoryEntry, type ProspectRecord, type DomainCheck, type Treasury, type AgentRunResult, type ProductDraft, type DemandSignal, type ActivityItem,
 } from "@/lib/businessOps";
 import { computeFallbackBrief, buildHermesWorldState } from "@/lib/hermesBrief";
 import { agentPlaybooks } from "@/lib/agentPlaybooks";
@@ -29,6 +29,16 @@ type Place = {
   kind: "core" | "agent" | "relay";
   x: number; // % of canvas
   y: number;
+};
+
+// Compact relative time for the live activity feed.
+const relTime = (iso: string) => {
+  const t = Date.parse(iso); if (!t) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 };
 
 // PRODUCER vs ENABLER world taxonomy (mirrors the orchestrator). Producers create
@@ -70,6 +80,7 @@ export default function World() {
   const [pipeline, setPipeline] = useState<{ pending: number; published: number; recent: ProductDraft[] }>({ pending: 0, published: 0, recent: [] });
   const [showApprovals, setShowApprovals] = useState(false);
   const [cycle, setCycle] = useState<string | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
 
   const connectorMap = useMemo(() => Object.fromEntries(connectors.map((c) => [c.id, c])), [connectors]);
   const fallback = useMemo(() => computeFallbackBrief(connectors, revenue, automation), [connectors, revenue, automation]);
@@ -93,11 +104,12 @@ export default function World() {
     setHistory(await loadHermesHistory());
     setRelay(await probeOperatorRelay());
     setPipeline(await loadProductPipeline());
+    setActivity(await loadActivity());
   }, []);
 
   useEffect(() => {
     refresh();
-    const t = window.setInterval(refresh, 60_000);
+    const t = window.setInterval(refresh, 30_000);
     return () => window.clearInterval(t);
   }, [refresh]);
 
@@ -173,11 +185,20 @@ export default function World() {
 
       {/* WORLD CANVAS */}
       <div className="relative z-10 mx-auto h-[calc(100vh-72px)] w-full max-w-[1400px]">
-        {/* conduits */}
+        {/* conduits — lit lines carry an animated pulse of data flowing to the core */}
         <svg className="absolute inset-0 h-full w-full" style={{ pointerEvents: "none" }}>
-          {PLACES.filter((p) => p.kind !== "core").map((p) => {
+          {PLACES.filter((p) => p.kind !== "core").map((p, i) => {
             const lit = ready(p);
-            return <line key={p.id} x1="50%" y1="47%" x2={`${p.x}%`} y2={`${p.y}%`} stroke={lit ? "rgba(120,200,150,0.35)" : "rgba(150,120,90,0.25)"} strokeWidth={lit ? 2 : 1} strokeDasharray={lit ? "0" : "5 5"} />;
+            return (
+              <g key={p.id}>
+                <line x1="50%" y1="47%" x2={`${p.x}%`} y2={`${p.y}%`} stroke={lit ? "rgba(120,200,150,0.30)" : "rgba(150,120,90,0.22)"} strokeWidth={lit ? 1.5 : 1} strokeDasharray={lit ? "0" : "5 5"} />
+                {lit && (
+                  <line x1={`${p.x}%`} y1={`${p.y}%`} x2="50%" y2="47%" stroke="#dff54a" strokeWidth={1.6} strokeLinecap="round" strokeDasharray="3 26" opacity={0.7}>
+                    <animate attributeName="stroke-dashoffset" from="29" to="0" dur="1.4s" begin={`${i * 0.18}s`} repeatCount="indefinite" />
+                  </line>
+                )}
+              </g>
+            );
           })}
         </svg>
 
@@ -243,7 +264,26 @@ export default function World() {
           <div className="mt-3 flex items-center justify-between border-t border-slate-800 pt-2 text-[9px] text-slate-500">
             <span>Real revenue <span className="font-mono font-bold text-emerald-300">${(revenue.netRevenueCents / 100).toFixed(0)}</span></span>
             <span>World readiness <span className="font-mono font-bold text-slate-300">{readiness}%</span></span>
-            <span className="text-slate-600">live · 60s</span>
+            <span className="text-slate-600">live · 30s</span>
+          </div>
+        </div>
+
+        {/* LIVE ACTIVITY RAIL — the world visibly breathing: what the agents just did */}
+        <div className="absolute bottom-4 left-4 w-[270px] rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />Live activity</p>
+            <span className="text-[9px] font-bold text-slate-500">{activity.length}</span>
+          </div>
+          <div className="mt-2 max-h-[200px] space-y-1.5 overflow-y-auto pr-1">
+            {activity.length === 0 && <p className="text-[10px] text-slate-500">{user ? "Quiet for now — agents run on the loop." : "Sign in to watch the agents work live."}</p>}
+            {activity.map((a) => (
+              <div key={a.id} className="flex gap-2 border-l-2 border-slate-700 pl-2">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#dff54a]/80">{a.who} · {a.kind} <span className="font-normal text-slate-600">{relTime(a.at)}</span></p>
+                  <p className="truncate text-[10px] text-slate-300" title={a.text}>{a.text}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

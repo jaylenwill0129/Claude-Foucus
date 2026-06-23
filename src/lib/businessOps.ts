@@ -486,6 +486,31 @@ export const loadProductPipeline = async (): Promise<{ pending: number; publishe
   }
 };
 
+// Live activity feed: a unified, newest-first stream of what the agents have just
+// done — learnings, opportunities, kaizen improvements, and products queued/published
+// — so the world visibly breathes. Owner-scoped via RLS.
+export type ActivityItem = { id: string; kind: string; who: string; text: string; at: string };
+export const loadActivity = async (): Promise<ActivityItem[]> => {
+  try {
+    const [kn, pd] = await Promise.all([
+      supabase.from("agent_knowledge").select("id,agent,kind,insight,topic,updated_at,created_at").order("updated_at", { ascending: false }).limit(14),
+      supabase.from("product_drafts").select("id,title,status,created_at,published_at").order("created_at", { ascending: false }).limit(8),
+    ]);
+    const items: ActivityItem[] = [];
+    const kindLabel: Record<string, string> = { outcome: "learned", improvement: "improved", opportunity: "spotted demand", research_digest: "researched", revenue_digest: "revenue", doctrine: "doctrine" };
+    for (const r of (kn.data ?? []) as Array<Record<string, unknown>>) {
+      items.push({ id: `kn-${r.id}`, kind: kindLabel[String(r.kind)] ?? String(r.kind), who: String(r.agent ?? "agent"), text: String(r.insight ?? r.topic ?? ""), at: String(r.updated_at ?? r.created_at ?? "") });
+    }
+    for (const r of (pd.data ?? []) as Array<Record<string, unknown>>) {
+      const live = r.status === "published";
+      items.push({ id: `pd-${r.id}`, kind: live ? "published" : "queued product", who: "Cyrus", text: String(r.title ?? ""), at: String(r.published_at ?? r.created_at ?? "") });
+    }
+    return items.filter((i) => i.text).sort((a, b) => (b.at > a.at ? 1 : -1)).slice(0, 16);
+  } catch {
+    return [];
+  }
+};
+
 // Maya's latent-demand "painkiller" opportunities (real complaints -> product ideas).
 export type DemandSignal = { id: string; pain: string; productIdea: string; acuteness: number; buildAgent: string; productType: string; source: string; status: string };
 export const loadDemandSignals = async (): Promise<DemandSignal[]> => {
