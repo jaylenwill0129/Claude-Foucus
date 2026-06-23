@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BrainCircuit, Music2, Search, Mail, ShoppingBag, PackageCheck, WalletCards,
-  RadioTower, RefreshCw, Power, LogIn, X, Check, Sparkles, Send, MapPin, Store, Megaphone, Play, ShieldCheck,
+  RadioTower, RefreshCw, Power, LogIn, X, Check, Sparkles, Send, MapPin, Store, Megaphone, Play, ShieldCheck, Eye, EyeOff,
 } from "lucide-react";
 import {
   getInitialConnectors, probeBusinessConnectors, loadRevenueSummary, loadAutomationSummary,
@@ -81,6 +81,7 @@ export default function World() {
   const [showApprovals, setShowApprovals] = useState(false);
   const [cycle, setCycle] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [panelsHidden, setPanelsHidden] = useState(false);
 
   const connectorMap = useMemo(() => Object.fromEntries(connectors.map((c) => [c.id, c])), [connectors]);
   const fallback = useMemo(() => computeFallbackBrief(connectors, revenue, automation), [connectors, revenue, automation]);
@@ -120,13 +121,16 @@ export default function World() {
   // thing the OPERATOR should do right now (the rest is for the agents).
   const operatorFocus = useMemo(() => {
     if (!automation.authenticated) return { tag: "Sign in", text: "Sign in to bring the world online and see your live intelligence.", tone: "amber" as const };
+    // Proactive self-diagnosis: if signed in but Hermes can't think, the LLM gateway
+    // is down (almost always out of credits) — surface it instead of silently degrading.
+    if (!hermesLive && !thinking) return { tag: "Brain offline", text: "The agents' LLM gateway isn't responding (it can think only with credits). Top up the Nous/model-gateway account to bring Hermes + all agents back online.", tone: "amber" as const };
     if (!automation.enabled) return { tag: "Re-arm", text: "Autopilot is off — the producers are paused. Arm it to resume autonomous production.", tone: "amber" as const };
     if (automation.paused) return { tag: "Resume", text: "Autopilot is paused. Resume to let the agents keep working.", tone: "amber" as const };
     if (automation.awaitingApproval > 0) return { tag: `Approve ${automation.awaitingApproval}`, text: `${automation.awaitingApproval} agent-prepared item${automation.awaitingApproval > 1 ? "s" : ""} await your approval (sends, supplier orders, ad spend).`, tone: "lime" as const };
     if (revenue.netRevenueCents === 0 && pipeline.published > 0) return { tag: "First sale", text: `${pipeline.published} product${pipeline.published > 1 ? "s are" : " is"} live with $0 sales — approve a small TikTok ad test to drive your first dollar.`, tone: "lime" as const };
     if (revenue.netRevenueCents > 0) return { tag: "Scale", text: `$${(revenue.netRevenueCents / 100).toFixed(0)} in real revenue. Reinvest into the winners; cut what doesn't convert.`, tone: "emerald" as const };
     return { tag: "Operating", text: brief.route || "Agents are producing. Nothing needs you right now.", tone: "slate" as const };
-  }, [automation, revenue.netRevenueCents, pipeline.published, brief.route]);
+  }, [automation, revenue.netRevenueCents, pipeline.published, brief.route, hermesLive, thinking]);
   const focusTone: Record<string, string> = { amber: "border-amber-500/40 bg-amber-500/[0.07] text-amber-300", lime: "border-[#dff54a]/40 bg-[#dff54a]/[0.07] text-[#dff54a]", emerald: "border-emerald-500/40 bg-emerald-500/[0.07] text-emerald-300", slate: "border-slate-700 bg-slate-900/50 text-slate-300" };
 
   const selected = PLACES.find((p) => p.id === selectedId) ?? null;
@@ -177,6 +181,7 @@ export default function World() {
           <Hud label="Hermes IQ" value={`${brief.intelligenceScore}`} accent />
           <button onClick={refresh} disabled={refreshing} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[11px] font-semibold hover:bg-slate-800 disabled:opacity-50"><RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />Probe</button>
           <button onClick={runCycle} disabled={!!cycle || !user} title="Run every producer agent once" className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[11px] font-semibold hover:bg-slate-800 disabled:opacity-50"><Play size={13} className={cycle ? "animate-pulse text-[#dff54a]" : ""} />{cycle ?? "Run cycle"}</button>
+          <button onClick={() => setPanelsHidden((v) => !v)} title="Hide/show overlays for a clean map" className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[11px] font-semibold hover:bg-slate-800">{panelsHidden ? <Eye size={13} /> : <EyeOff size={13} />}</button>
           <button onClick={toggleAutopilot} disabled={!automation.authenticated} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold disabled:opacity-40 ${automation.enabled ? "bg-[#dff54a] text-[#0a0e14]" : "border border-slate-700 bg-slate-900/60"}`}><Power size={13} />{automation.enabled ? "Armed" : "Autopilot"}</button>
           {user ? <button onClick={signOut} className="text-[10px] font-bold text-slate-400 hover:text-slate-100">Sign out</button> : <Link to="/auth" className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-slate-100"><LogIn size={12} />Sign in</Link>}
           <Link to="/console" className="text-[10px] font-bold text-slate-500 hover:text-slate-300">Console ↗</Link>
@@ -209,7 +214,7 @@ export default function World() {
           const Icon = p.icon;
           const sizes = p.kind === "core" ? "h-32 w-32" : "h-24 w-24";
           return (
-            <button key={p.id} onClick={() => setSelectedId(p.id)} className="absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
+            <button key={p.id} onClick={() => setSelectedId(p.id)} className="absolute z-30 -translate-x-1/2 -translate-y-1/2 focus:outline-none" style={{ left: `${p.x}%`, top: `${p.y}%` }}>
               <div className={`group relative grid ${sizes} place-items-center rounded-full border transition ${p.kind === "core" ? "border-[#dff54a]/50 bg-[#11161f]" : isReady ? "border-emerald-500/40 bg-[#0e1620]" : "border-amber-600/40 bg-[#16120e]"} ${selectedId === p.id ? "ring-2 ring-[#dff54a]" : ""} hover:scale-105`} style={{ boxShadow: p.kind === "core" ? "0 0 50px rgba(223,245,74,0.18)" : isReady ? "0 0 26px rgba(80,200,140,0.18)" : "0 0 26px rgba(200,150,70,0.14)" }}>
                 {active && <span className="absolute inset-0 animate-ping rounded-full bg-[#dff54a]/15" />}
                 <Icon size={p.kind === "core" ? 34 : 24} className={p.kind === "core" ? "text-[#dff54a]" : isReady ? "text-emerald-300" : "text-amber-300"} />
@@ -230,7 +235,8 @@ export default function World() {
             from live state by Hermes. Agent telemetry (automation counters, systems
             health, product pipeline) is intentionally not surfaced here — it is the
             agents' working data, read from the database, not operator clutter. */}
-        <div className="absolute left-1/2 top-[60%] w-[360px] -translate-x-1/2 rounded-2xl border border-slate-800 bg-[#0d1219]/92 p-4 backdrop-blur">
+        {!panelsHidden && (
+        <div className="pointer-events-none absolute left-1/2 top-[60%] z-10 w-[360px] -translate-x-1/2 rounded-2xl border border-slate-800 bg-[#0d1219]/92 p-4 backdrop-blur">
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">
               <span className={`h-1.5 w-1.5 rounded-full ${thinking ? "bg-[#dff54a] animate-pulse" : hermesLive ? "bg-emerald-400" : "bg-slate-500"}`} />
@@ -242,7 +248,7 @@ export default function World() {
           <p className="mt-1 text-[10px] leading-relaxed text-slate-400"><span className="text-amber-300/90">{brief.bottleneck}</span></p>
 
           {/* the single highest-leverage move for the operator */}
-          <div className={`mt-3 rounded-xl border p-2.5 ${focusTone[operatorFocus.tone]}`}>
+          <div className={`pointer-events-auto mt-3 rounded-xl border p-2.5 ${focusTone[operatorFocus.tone]}`}>
             <p className="text-[8px] font-bold uppercase tracking-[0.12em] opacity-80">Your move → {operatorFocus.tag}</p>
             <p className="mt-1 text-[11px] font-semibold leading-snug text-slate-100">{operatorFocus.text}</p>
             <div className="mt-2">
@@ -267,9 +273,11 @@ export default function World() {
             <span className="text-slate-600">live · 30s</span>
           </div>
         </div>
+        )}
 
-        {/* LIVE ACTIVITY RAIL — the world visibly breathing: what the agents just did */}
-        <div className="absolute bottom-4 left-4 w-[270px] rounded-xl border border-slate-800 bg-[#0d1219]/85 p-3 backdrop-blur">
+        {/* LIVE ACTIVITY RAIL — read-only + click-through so it never blocks agent nodes */}
+        {!panelsHidden && (
+        <div className="pointer-events-none absolute bottom-4 left-4 z-10 w-[240px] rounded-xl border border-slate-800 bg-[#0d1219]/80 p-3 backdrop-blur">
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />Live activity</p>
             <span className="text-[9px] font-bold text-slate-500">{activity.length}</span>
@@ -286,6 +294,7 @@ export default function World() {
             ))}
           </div>
         </div>
+        )}
       </div>
 
       {/* DRAWER */}
