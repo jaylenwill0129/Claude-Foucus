@@ -121,14 +121,12 @@ export default function World() {
   // thing the OPERATOR should do right now (the rest is for the agents).
   const operatorFocus = useMemo(() => {
     if (!automation.authenticated) return { tag: "Sign in", text: "Sign in to bring the world online and see your live intelligence.", tone: "amber" as const };
-    // Proactive self-diagnosis: if signed in but Hermes can't think, the LLM gateway
-    // is down (almost always out of credits) — surface it instead of silently degrading.
-    if (!hermesLive && !thinking) return { tag: "Brain offline", text: "The agents' LLM gateway isn't responding (it can think only with credits). Top up the Nous/model-gateway account to bring Hermes + all agents back online.", tone: "amber" as const };
     if (!automation.enabled) return { tag: "Re-arm", text: "Autopilot is off — the producers are paused. Arm it to resume autonomous production.", tone: "amber" as const };
     if (automation.paused) return { tag: "Resume", text: "Autopilot is paused. Resume to let the agents keep working.", tone: "amber" as const };
     if (automation.awaitingApproval > 0) return { tag: `Approve ${automation.awaitingApproval}`, text: `${automation.awaitingApproval} agent-prepared item${automation.awaitingApproval > 1 ? "s" : ""} await your approval (sends, supplier orders, ad spend).`, tone: "lime" as const };
     if (revenue.netRevenueCents === 0 && pipeline.published > 0) return { tag: "First sale", text: `${pipeline.published} product${pipeline.published > 1 ? "s are" : " is"} live with $0 sales — approve a small TikTok ad test to drive your first dollar.`, tone: "lime" as const };
     if (revenue.netRevenueCents > 0) return { tag: "Scale", text: `$${(revenue.netRevenueCents / 100).toFixed(0)} in real revenue. Reinvest into the winners; cut what doesn't convert.`, tone: "emerald" as const };
+    if (!hermesLive && !thinking) return { tag: "Free mode", text: "Running on the free agent brain — the scheduled tasks (Cyrus, Maya, Dev, Aria) keep creating + publishing via Claude + MCP at no gateway cost. Paid Hermes strategy is optional; only top up if you want live frontier briefs.", tone: "slate" as const };
     return { tag: "Operating", text: brief.route || "Agents are producing. Nothing needs you right now.", tone: "slate" as const };
   }, [automation, revenue.netRevenueCents, pipeline.published, brief.route, hermesLive, thinking]);
   const focusTone: Record<string, string> = { amber: "border-amber-500/40 bg-amber-500/[0.07] text-amber-300", lime: "border-[#dff54a]/40 bg-[#dff54a]/[0.07] text-[#dff54a]", emerald: "border-emerald-500/40 bg-emerald-500/[0.07] text-emerald-300", slate: "border-slate-700 bg-slate-900/50 text-slate-300" };
